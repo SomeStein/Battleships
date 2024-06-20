@@ -136,12 +136,28 @@ def generate_ship_positions(ships_details, board_size) -> list[dict[int, list[tu
     return ship_positions
 
 
-def recursion(ships_positions: list[dict[int, list[tuple[set[int], set[int], int]]]], cell_ranges: list[list[int]], redundancy_indices:list[int], pos_ids: list[int] = [], i: int = 0, board: set[int] = set([])) -> None:
+def recursion(ships_positions: list[dict[int, list[tuple[set[int], set[int], int]]]], cell_ranges: list[list[int]], redundancy_indices:list[int], pos_ids: list[int] = [], i: int = 0, board: set[int] = set([]), padded_board: set[int] = set([])) -> None:
 
+    if i == len(ships_positions):  # base case
+
+        global densities
+        global k
+
+        for cell_num in board:
+            densities[cell_num] += 1
+
+        if k % 100_000 == 0:
+            print("\033[H\033[J", end="")
+            print(pos_ids, end="\r")
+        k += 1
+        return
     
-    search_space = [cell_num for cell_num in cell_ranges[i] if cell_num not in board]
     # ships starting from cell with cell num
-    for cell_num in search_space:
+    for cell_num in cell_ranges[i]:
+        
+        if cell_num in padded_board:
+            continue
+        
         # both x-axis and y-axis versions
         for ship, padded_ship, pos_id in ships_positions[i][cell_num]:
             
@@ -150,23 +166,7 @@ def recursion(ships_positions: list[dict[int, list[tuple[set[int], set[int], int
                 
             if padded_ship.isdisjoint(board):
 
-                if i == len(ships_positions)-1:  # leaf condition
-
-                    global densities
-                    global k
-
-                    for cell_num in board.union(ship):
-                        densities[cell_num] += 1
-
-                    if k % 10_000 == 0:
-                        print("\033[H\033[J", end="")
-                        print(pos_ids, end="\r")
-                    k += 1
-                    return
-
-                else:
-
-                    recursion(ships_positions, cell_ranges, redundancy_indices, pos_ids + [pos_id], i+1, board.union(ship))
+                recursion(ships_positions, cell_ranges, redundancy_indices, pos_ids + [pos_id], i+1, board.union(ship), padded_board.union(padded_ship))
 
 
 ships = [("Schlachtschiff", 6, 1), ("Kreuzer", 4, 2),
