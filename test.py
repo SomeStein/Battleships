@@ -1,6 +1,4 @@
-import random
 import numpy as np
-
 
 def visualize_dict(dictionary):
     # Extract coordinates and values
@@ -44,7 +42,6 @@ def visualize_dict(dictionary):
 
     print()
 
-
 def draw_board(coordinates):
     # Clear the screen
     print("\033[H\033[J", end="")
@@ -57,7 +54,6 @@ def draw_board(coordinates):
             else:
                 print(".", end="")
         print()
-
 
 def within_board(ship, board_size):
     for x, y in ship:
@@ -73,7 +69,6 @@ def within_board(ship, board_size):
 
     return True
 
-
 def pad_ship(ship, board_size):
     padded_ship = set([])
     for (x, y) in ship:
@@ -82,7 +77,6 @@ def pad_ship(ship, board_size):
                 if within_board([(x+a, y+b)], board_size):
                     padded_ship.add((x+a, y+b))
     return padded_ship
-
 
 def generate_ship_positions(ships, board_size):
     ship_positions = []
@@ -113,8 +107,6 @@ def generate_ship_positions(ships, board_size):
 ships = [("Schlachtschiff", 6, 1), ("Kreuzer", 4, 2),
          ("Zerstörer", 3, 3), ("UBoot", 2, 4)]
 
-# random.shuffle(ships)
-
 board_size = (10, 10)
 
 ships_positions, padded_ships_positions = generate_ship_positions(
@@ -122,7 +114,6 @@ ships_positions, padded_ships_positions = generate_ship_positions(
 
 densities = {}
 k = 0
-
 
 def recursion(ships_positions, padded_ships_positions, densities, redundancy_indices, ship_indices=[], i=0, board=set([])):
 
@@ -151,7 +142,6 @@ def recursion(ships_positions, padded_ships_positions, densities, redundancy_ind
         if padded_ship.isdisjoint(board):
             recursion(ships_positions, padded_ships_positions, densities,
                       redundancy_indices, ship_indices + [j], i+1, board.union(ship))
-
 
 recursion(ships_positions, padded_ships_positions,
           densities, [2, 4, 5, 7, 8, 9])
