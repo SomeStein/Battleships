@@ -122,7 +122,7 @@ def recursion(ships_positions, padded_ships_positions, densities, redundancy_ind
         for coord in board:
             densities[coord] = densities.setdefault(coord, 0) + 1
         global k
-        if k % 1_000_000 == 0:
+        if k % 100_000 == 0:
             draw_board(board)
             print(ship_indices)
             visualize_dict(densities)
