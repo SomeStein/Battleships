@@ -13,50 +13,6 @@ def calculate_total_size(d):
 
     return total_size
 
-
-def visualize_dict(dictionary):
-    # Extract cell_numinates and values
-    cell_nums = list(dictionary.keys())
-    values = list(dictionary.values())
-
-    if len(cell_nums) == 0:
-        return
-
-    # Determine the size of the matrix
-    max_x = max(cell_nums, key=lambda x: x[0])[0]
-    max_y = max(cell_nums, key=lambda x: x[1])[1]
-    min_x = min(cell_nums, key=lambda x: x[0])[0]
-    min_y = min(cell_nums, key=lambda x: x[1])[1]
-
-    # Create a matrix filled with spaces
-    matrix = np.full((max_y - min_y + 1, max_x - min_x + 1), ' ')
-
-    # Normalize values to fit within the gradient range
-    min_value = min(values)
-    max_value = max(values)
-    range_value = max_value - min_value
-
-    # Define the gradient characters
-    gradient = ".:-=+*#%@"
-
-    def get_gradient_char(value):
-        if range_value == 0:
-            return gradient[-1]
-        index = int((value - min_value) / range_value * (len(gradient) - 1))
-        return gradient[index]
-
-    # Fill the matrix with gradient characters based on normalized values
-    for (x, y), value in dictionary.items():
-        char = get_gradient_char(value)
-        matrix[y - min_y, x - min_x] = char
-
-    # Print the matrix
-    for row in matrix:
-        print(''.join(row))
-
-    print()
-
-
 def draw_board(pos_ids, ship_positions, board_size):
     # Clear the screen
     print("\033[H\033[J", end="")
