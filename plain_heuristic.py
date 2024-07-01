@@ -57,7 +57,7 @@ class Board:
             for col in range(self.board_sizes[1]):
                 y = row-self.board_sizes[0]/2
                 x = col-self.board_sizes[1]/2
-                self.rim_job[(row,col)] = math.sqrt(x*x + y*y)
+                self.rim_job[(row,col)] = abs(x)+abs(y)
 
     def get_padding(self, ship_coords):
 
