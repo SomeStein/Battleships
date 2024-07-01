@@ -168,24 +168,40 @@ class Board:
     
     def calculate_probability_density(self):
         probability_map = np.zeros((self.board_sizes[0], self.board_sizes[1]))
+        
+        all_valid_placements = []
 
         for ship_size in set(self.ship_sizes):
             
             ship_size_count = self.ship_sizes.count(ship_size)
 
             placements = self.get_valid_placements(ship_size)
+            
+            all_valid_placements += placements
 
             for placement in placements:
                 
-                hit_bonus = 1
-                
                 for r,c in placement:
-                    if self.board[r,c] == Board.HIT:
-                        hit_bonus = 10
+                    probability_map[r,c] += self.num_all_placements[ship_size]/len(placements)*self.rim_job[r,c]
+                                
+            
+        row_ind, col_ind = np.where(self.board == Board.HIT)
+        
+        hit_coords = list(zip(row_ind, col_ind))    
                 
-                for r,c in placement:
-                    probability_map[r,c] += self.num_all_placements[ship_size]/len(placements)*ship_size_count*hit_bonus*self.rim_job[r,c]
-               
+        for hit_coord in hit_coords:
+            
+            placements_on_hit_coord = [placement for placement in all_valid_placements if hit_coord in placement]
+                    
+            bonus = 1000 / len(placements_on_hit_coord)
+                    
+            for placement in placements_on_hit_coord:
+                for coord in placement:
+                    d = abs(hit_coord[0]-coord[0]) + abs(hit_coord[1] - coord[1])
+                    if d != 0:
+                        probability_map[coord] += bonus
+                        
+        probability_map /= (np.sum(probability_map) + 1)
             
         self.probability_map = probability_map
 
@@ -203,10 +219,10 @@ class Board:
                 if self.probability_map[row][col] == m and cell_value == Board.UNKNOWN:
                     best_shots.append((row, col))
                     
-        #furthest = find_furthest_coordinate([(r-(self.board_sizes[0]-1)/2, c-(self.board_sizes[1]-1)/2) for r,c in best_shots])
-        #best_shot = (int(furthest[0]+self.board_sizes[0]/2), int(furthest[1]+self.board_sizes[1]/2))
+        furthest = find_furthest_coordinate([(r-(self.board_sizes[0]-1)/2, c-(self.board_sizes[1]-1)/2) for r,c in best_shots])
+        best_shot = (int(furthest[0]+self.board_sizes[0]/2), int(furthest[1]+self.board_sizes[1]/2))
 
-        return random.choice(best_shots)
+        return best_shot
 
     def update_board_value(self, cell, value):
 
@@ -255,7 +271,7 @@ class Board:
                 elif self.board[row, col] == Board.MISS:
                     string += "▒▒▒ "
                 else:
-                    num_str = str(int(self.probability_map[row, col]))
+                    num_str = str(int(self.probability_map[row, col] * 100)) + "%"
                     string += num_str + " " * (4 - len(num_str))
             string += "\n"
         return string
@@ -348,7 +364,7 @@ def test_game(board_sizes, ship_sizes, test_board):
         k += 1
         
         print("\nRound num:", k)
-        print(np.round(board.probability_map,0))
+        print(board)#print(np.round(board.probability_map,0))
         print(board.ship_sizes)
         if len(board.ship_sizes) == 0:
             break
@@ -400,4 +416,15 @@ test_board2 = [[(9,0),(9,1),(9,2),(9,3),(9,4),(9,5)],
               [(2,7),(3,7)],
               [(8,7),(9,7)]]
 
-test_game(BOARD_SIZES, SHIP_SIZES, test_board2)
+test_board3 = [[(2,2),(3,2),(4,2),(5,2),(6,2),(7,2)],
+              [(0,8),(1,8),(2,8),(3,8)],
+              [(9,3),(9,4),(9,5),(9,6)],
+              [(1,4),(1,5),(1,6)],
+              [(3,4),(4,4),(5,4)],
+              [(6,9),(7,9),(8,9)],
+              [(0,0),(0,1)],
+              [(3,6),(4,6)],
+              [(5,0),(6,0)],
+              [(6,6),(6,7)]]
+
+test_game(BOARD_SIZES, SHIP_SIZES, test_board1)
