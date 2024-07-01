@@ -43,21 +43,33 @@ class Board:
         self.board_sizes = board_sizes
         self.ship_sizes = ship_sizes
 
-        self.board = np.zeros(
-            (self.board_sizes[0], self.board_sizes[1]), dtype=np.uint8)
+        self.board = np.zeros((self.board_sizes[0], self.board_sizes[1]), dtype=np.uint8)
 
         self.num_all_placements = {}
         for ship_size in set(self.ship_sizes):
             num = len(self.get_possible_placements(ship_size))
             self.num_all_placements[ship_size] = num
         
-        self.rim_job = {}
+        self.rim_job = np.zeros((self.board_sizes[0], self.board_sizes[1]))
         
         for row in range(self.board_sizes[0]):
             for col in range(self.board_sizes[1]):
-                y = row-self.board_sizes[0]/2
-                x = col-self.board_sizes[1]/2
-                self.rim_job[(row,col)] = abs(x)+abs(y)
+                y = row-(self.board_sizes[0]-1)/2
+                x = col-(self.board_sizes[1]-1)/2
+                self.rim_job[row,col] = (abs(x) + abs(y))*2 + 1
+        
+        weights = [[0.77294118, 0.71882353, 0.89294118, 0.84588235, 0.83411765, 0.83411765, 0.84588235, 0.89294118, 0.71882353, 0.77294118],
+                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294, 0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
+                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176, 0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
+                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118, 0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
+                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
+                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
+                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118, 0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
+                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176, 0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
+                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294, 0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
+                   [0.77294118, 0.71882353, 0.89294118, 0.84588235, 0.83411765, 0.83411765, 0.84588235, 0.89294118, 0.71882353, 0.77294118]]
+                
+        self.rim_job = np.array(weights)
 
     def get_padding(self, ship_coords):
 
@@ -83,7 +95,7 @@ class Board:
                     ship_coords = [(row, c)
                                    for c in range(col, col + ship_size)]
 
-                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords):
+                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r,c in ship_coords):
 
                         padding = self.get_padding(ship_coords)
 
@@ -169,11 +181,12 @@ class Board:
                 
                 for r,c in placement:
                     if self.board[r,c] == Board.HIT:
-                        hit_bonus += 10
+                        hit_bonus = 10
                 
                 for r,c in placement:
-                    probability_map[r,c] += self.num_all_placements[ship_size]/len(placements)*ship_size_count*hit_bonus*self.rim_job[(r,c)]
-
+                    probability_map[r,c] += self.num_all_placements[ship_size]/len(placements)*ship_size_count*hit_bonus*self.rim_job[r,c]
+               
+            
         self.probability_map = probability_map
 
     def best_possible_shot(self):
@@ -190,9 +203,10 @@ class Board:
                 if self.probability_map[row][col] == m and cell_value == Board.UNKNOWN:
                     best_shots.append((row, col))
                     
-        furthest = find_furthest_coordinate([(r-self.board_sizes[0]/2, c-self.board_sizes[1]/2) for r,c in best_shots])
+        #furthest = find_furthest_coordinate([(r-(self.board_sizes[0]-1)/2, c-(self.board_sizes[1]-1)/2) for r,c in best_shots])
+        #best_shot = (int(furthest[0]+self.board_sizes[0]/2), int(furthest[1]+self.board_sizes[1]/2))
 
-        return (int(furthest[0]+self.board_sizes[0]/2), int(furthest[1]+self.board_sizes[1]/2))
+        return random.choice(best_shots)
 
     def update_board_value(self, cell, value):
 
@@ -334,7 +348,7 @@ def test_game(board_sizes, ship_sizes, test_board):
         k += 1
         
         print("\nRound num:", k)
-        print(board)
+        print(np.round(board.probability_map,0))
         print(board.ship_sizes)
         if len(board.ship_sizes) == 0:
             break
