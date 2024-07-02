@@ -17,40 +17,21 @@ class Board:
         self.board_sizes = board_sizes
         self.ship_sizes = ship_sizes
 
-        self.board = np.zeros(
-            (self.board_sizes[0], self.board_sizes[1]), dtype=np.uint8)
+        n_rows, n_cols = self.board_sizes
+        self.board = np.zeros((n_rows, n_cols), dtype=np.uint8)
 
-        self.num_all_placements = {}
-        for ship_size in set(self.ship_sizes):
-            num = len(self.get_possible_placements(ship_size))
-            self.num_all_placements[ship_size] = num
-
-        self.rim_job = np.zeros((self.board_sizes[0], self.board_sizes[1]))
-
-        for row in range(self.board_sizes[0]):
-            for col in range(self.board_sizes[1]):
-                y = row-(self.board_sizes[0]-1)/2
-                x = col-(self.board_sizes[1]-1)/2
-                self.rim_job[row, col] = (abs(x) + abs(y))*2 + 1
-
+        # fmt: off
         weights = [[0.77294118, 0.71882353, 0.89294118, 0.84588235, 0.83411765, 0.83411765, 0.84588235, 0.89294118, 0.71882353, 0.77294118],
-                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294,
-                       0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
-                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176,
-                       0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
-                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118,
-                       0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
-                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,
-                       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
-                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,
-                       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
-                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118,
-                       0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
-                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176,
-                       0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
-                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294,
-                       0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
+                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294, 0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
+                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176, 0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
+                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118, 0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
+                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
+                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
+                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118, 0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
+                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176, 0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
+                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294, 0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
                    [0.77294118, 0.71882353, 0.89294118, 0.84588235, 0.83411765, 0.83411765, 0.84588235, 0.89294118, 0.71882353, 0.77294118]]
+        # fmt: on
 
         self.rim_job = np.array(weights)
 
@@ -153,43 +134,41 @@ class Board:
         return valid_placements
 
     def calculate_probability_density(self):
-        probability_map = np.zeros((self.board_sizes[0], self.board_sizes[1]))
 
-        all_valid_placements = []
+        n_rows, n_cols = self.board_sizes
+
+        probability_map = np.ones((n_rows, n_cols))
 
         for ship_size in set(self.ship_sizes):
 
             ship_size_count = self.ship_sizes.count(ship_size)
 
-            placements = self.get_valid_placements(ship_size)
+            ship_size_p_map = np.zeros((n_rows, n_cols))
 
-            all_valid_placements += placements
+            placements = self.get_valid_placements(ship_size)
 
             for placement in placements:
 
+                padding = self.get_padding((placement))
+
+                padding_punishment = 1
+
+                for r, c in padding:
+                    if self.board[r, c] == Board.UNKNOWN:
+                        padding_punishment += 1
+
                 for r, c in placement:
-                    probability_map[r, c] += self.num_all_placements[ship_size] / \
-                        len(placements)*self.rim_job[r, c]
+                    ship_size_p_map[r, c] += 1/padding_punishment
 
-        row_ind, col_ind = np.where(self.board == Board.HIT)
+            ship_size_p_map /= len(placements)
 
-        hit_coords = list(zip(row_ind, col_ind))
+            ship_size_p_map /= np.sum(ship_size_p_map)/ship_size
 
-        for hit_coord in hit_coords:
+            probability_map *= (1 - ship_size_p_map)
 
-            placements_on_hit_coord = [
-                placement for placement in all_valid_placements if hit_coord in placement]
+        probability_map = 1 - probability_map
 
-            bonus = 1000 / len(placements_on_hit_coord)
-
-            for placement in placements_on_hit_coord:
-                for coord in placement:
-                    d = abs(hit_coord[0]-coord[0]) + \
-                        abs(hit_coord[1] - coord[1])
-                    if d != 0:
-                        probability_map[coord] += bonus
-
-        probability_map /= (np.sum(probability_map) + 1)
+        hit_spots = []
 
         self.probability_map = probability_map
 
@@ -257,8 +236,7 @@ class Board:
                 elif self.board[row, col] == Board.MISS:
                     string += "▒▒▒ "
                 else:
-                    num_str = str(
-                        int(self.probability_map[row, col] * 100)) + "%"
+                    num_str = str(int(self.probability_map[row, col] * 100))
                     string += num_str + " " * (4 - len(num_str))
             string += "\n"
         return string
@@ -406,6 +384,28 @@ def test_game(board_sizes, ship_sizes, test_board, verbose=2):
             board.ship_sizes.remove(ship_size)
 
 
+def print_placement(placement, board_sizes):
+
+    n_rows, n_cols = board_sizes
+
+    string = "▒▒"*(n_cols+2)
+    string += "\n"
+
+    for row in range(n_rows):
+        string += "▒▒"
+        for col in range(n_cols):
+            if (row, col) in placement:
+                string += "██"
+            else:
+                string += "  "
+        string += "▒▒"
+        string += "\n"
+
+    string += "▒▒"*(n_cols+2)
+
+    print(string)
+
+
 # Constants
 BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
 SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
@@ -447,6 +447,20 @@ test_board3 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
                [(5, 0), (6, 0)],
                [(6, 6), (6, 7)]]
 
-test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=1)
-test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=1)
-test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=1)
+
+test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=0)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=0)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=0)
+
+
+# # Constants
+# BOARD_SIZES = 4, 4  # Standard Battleship board size is 10x10
+# SHIP_SIZES = [2, 2]  # Standard Battleship ship sizes
+
+# board = Board(BOARD_SIZES, SHIP_SIZES)
+
+# board.update_board_value((0, 0), Board.HIT)
+
+# for p in board.get_valid_placements(2):
+#     print(p)
+#     print_placement(p, (4, 4))
