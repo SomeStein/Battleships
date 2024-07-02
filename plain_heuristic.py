@@ -4,31 +4,6 @@ import math
 import re
 
 
-def check_and_store_tuple(input_string, max_value):
-    # Define regular expression patterns for various formats
-    patterns = [
-        r'^\(\s*(\d+)\s*,\s*(\d+)\s*\)$',  # (int, int) with optional spaces
-        r'^\s*(\d+)\s*,\s*(\d+)\s*$',       # int, int with optional spaces
-        r'^\[\s*(\d+)\s*,\s*(\d+)\s*\]$',   # [int, int] with optional spaces
-        r'^\{\s*(\d+)\s*,\s*(\d+)\s*\}$'    # {int, int} with optional spaces
-    ]
-
-    for pattern in patterns:
-        match = re.match(pattern, input_string)
-        if match:
-            row, col = map(int, match.groups())
-
-            # Check if row and col are within the specified range
-            if 0 <= row < max_value and 0 <= col < max_value:
-                return (row, col)
-            else:
-                print("Warning: Values are out of range.")
-                return None
-
-    print("Warning: The input string is not in the correct format.")
-    return None
-
-
 class Board:
 
     # Shot status
@@ -333,6 +308,31 @@ class Board:
 
             if len(self.ship_sizes) == 0:
                 break
+
+
+def check_and_store_tuple(input_string, max_value):
+    # Define regular expression patterns for various formats
+    patterns = [
+        r'^\(\s*(\d+)\s*,\s*(\d+)\s*\)$',  # (int, int) with optional spaces
+        r'^\s*(\d+)\s*,\s*(\d+)\s*$',       # int, int with optional spaces
+        r'^\[\s*(\d+)\s*,\s*(\d+)\s*\]$',   # [int, int] with optional spaces
+        r'^\{\s*(\d+)\s*,\s*(\d+)\s*\}$'    # {int, int} with optional spaces
+    ]
+
+    for pattern in patterns:
+        match = re.match(pattern, input_string)
+        if match:
+            row, col = map(int, match.groups())
+
+            # Check if row and col are within the specified range
+            if 0 <= row < max_value and 0 <= col < max_value:
+                return (row, col)
+            else:
+                print("Warning: Values are out of range.")
+                return None
+
+    print("Warning: The input string is not in the correct format.")
+    return None
 
 
 def get_shot_value(test_board, shot):
