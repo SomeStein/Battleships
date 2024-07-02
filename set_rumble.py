@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 
+
 def calculate_total_size(d):
     total_size = sys.getsizeof(d)  # Size of the dictionary itself
 
@@ -9,16 +10,18 @@ def calculate_total_size(d):
         total_size += sys.getsizeof(value_set)  # Size of the set
 
         for value in value_set:
-            total_size += sys.getsizeof(value)  # Size of each integer in the set
+            # Size of each integer in the set
+            total_size += sys.getsizeof(value)
 
     return total_size
+
 
 def draw_board(pos_ids, ship_positions, board_size):
     # Clear the screen
     print("\033[H\033[J", end="")
-    
+
     cell_nums = []
-    
+
     for id in pos_ids:
         cell_nums += list(ship_positions[id][0])
 
@@ -67,19 +70,20 @@ def pad_ship(ship, board_size):
                     padded_ship.add((x+a, y+b))
     return padded_ship
 
+
 def subtract_sets(list1, list2):
     return [s1 - s2 for s1, s2 in zip(list1, list2)]
 
 
-def generate_ship_positions(ships_details, board_size) -> tuple[dict[int, tuple[set[int],set[int]]],list[set[int]]]:
+def generate_ship_positions(ships_details, board_size) -> tuple[dict[int, tuple[set[int], set[int]]], list[set[int]]]:
     ship_positions = {}
     ship_positions["board_size"] = board_size
-    ranges_int :list[int] = [0]
+    ranges_int: list[int] = [0]
     pos_id = 0
     for ship_details in ships_details:
         ship_name, ship_len, ship_count = ship_details
         for i in range(ship_count):
-            
+
             for y in range(board_size[0]):
                 for x in range(board_size[1]):
 
@@ -106,20 +110,22 @@ def generate_ship_positions(ships_details, board_size) -> tuple[dict[int, tuple[
 
                         ship_positions[pos_id] = (ship_nums, padded_ship_nums)
                         pos_id += 1
-                        
+
             ranges_int.append(pos_id)
-            
+
     ship_positions["ranges_int"] = ranges_int[:-1]
-            
+
     total_num_ships = sum([num for (_a, _b, num) in ships_details])
-    ranges_set_list = [set(range(ranges_int[i], ranges_int[i+1])) for i in range(total_num_ships)]
+    ranges_set_list = [set(range(ranges_int[i], ranges_int[i+1]))
+                       for i in range(total_num_ships)]
 
     return ship_positions, ranges_set_list
 
-def generate_filter_lookup(ship_positions:dict[int, tuple[set[int],set[int]]], ranges:list[tuple[int,int]]) -> dict[int, list[set[int]]]:
-    
+
+def generate_filter_lookup(ship_positions: dict[int, tuple[set[int], set[int]]], ranges: list[tuple[int, int]]) -> dict[int, list[set[int]]]:
+
     filter_lookup: dict[int, list[set[int]]] = {}
-    
+
     for i in range(len(ranges)):
         for id in ranges[i]:
             filter_lookup[id] = []
@@ -130,39 +136,42 @@ def generate_filter_lookup(ship_positions:dict[int, tuple[set[int],set[int]]], r
                     other_ship = ship_positions[other_id][0]
                     if not padded_ship.isdisjoint(other_ship):
                         filter_lookup[id][-1].add(other_id)
-           
+
     return filter_lookup
+
 
 k = 0
 
-def recursion(ship_positions:dict[int,set[int]], filter_lookup:dict[int,set[int]], ranges:list[set[int]], redundancy: dict[int,set[int]], pos_ids:list[int] = []) -> None:
-    
-    if len(ranges) == 0:  # base case      
+
+def recursion(ship_positions: dict[int, set[int]], filter_lookup: dict[int, set[int]], ranges: list[set[int]], redundancy: dict[int, set[int]], pos_ids: list[int] = []) -> None:
+
+    if len(ranges) == 0:  # base case
         global k
         if k % 1_000_000 == 0:
-            draw_board(pos_ids, ship_positions, ship_positions["board_size"])  
-            ranges_int = ship_positions["ranges_int"] 
-            scaled_pos_ids = [a-b for (a,b) in zip(pos_ids, ranges_int)]  
+            draw_board(pos_ids, ship_positions, ship_positions["board_size"])
+            ranges_int = ship_positions["ranges_int"]
+            scaled_pos_ids = [a-b for (a, b) in zip(pos_ids, ranges_int)]
             print(scaled_pos_ids)
             print("\033[H", end="")
-        k+=1
+        k += 1
         return
 
     for id in sorted(list(ranges[0])):
-                
+
         ranges_filter = filter_lookup[id]
         _ranges = subtract_sets(ranges[1:], ranges_filter)
-                
-        recursion(ship_positions, filter_lookup, _ranges, redundancy, pos_ids + [id])
-        
+
+        recursion(ship_positions, filter_lookup,
+                  _ranges, redundancy, pos_ids + [id])
+
         ship_num = len(pos_ids)
         if ship_num in redundancy:
             for index in redundancy[ship_num]:
                 ranges[index] - {id}
-        
-        
-ships = [("Schlachtschiff", 6, 1), ("Kreuzer", 4, 2),
-         ("Zerstörer", 3, 3), ("UBoot", 2, 4)]
+
+
+ships = [("Schlachtschiff", 6, 1), ("Kreuzer", 4, 1),
+         ("Zerstörer", 3, 1), ("UBoot", 2, 1)]
 
 board_size = (10, 10)
 
@@ -170,7 +179,6 @@ ship_positions, ranges = generate_ship_positions(ships, board_size)
 
 filter_lookup = generate_filter_lookup(ship_positions, ranges)
 
-redundancy = {1:{1}, 3:{1,2}, 4:{1}, 6:{1,2,3}, 7:{1,2}, 8:{1}}
-
+redundancy = {1: {1}, 3: {1, 2}, 4: {1}, 6: {1, 2, 3}, 7: {1, 2}, 8: {1}}
+redundancy = {}
 recursion(ship_positions, filter_lookup, ranges, redundancy)
-

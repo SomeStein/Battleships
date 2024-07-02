@@ -49,6 +49,19 @@ class Board:
 
         return padding_coords
 
+    def get_orthogonals(self, coord):
+
+        orthogonals = []
+
+        for a, b in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            r = coord[0] + a
+            c = coord[1] + b
+
+            if 0 <= r < self.board_sizes[0] and 0 <= c < self.board_sizes[1]:
+                orthogonals.append((r, c))
+
+        return orthogonals
+
     def get_possible_placements(self, ship_size, valid_test=False):
 
         placements = []
@@ -72,7 +85,7 @@ class Board:
                     ship_coords = [(r, col)
                                    for r in range(row, row + ship_size)]
 
-                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords):
+                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
 
                         padding = self.get_padding(ship_coords)
 
@@ -139,6 +152,8 @@ class Board:
 
         probability_map = np.ones((n_rows, n_cols))
 
+        all_valid_placements = []
+
         for ship_size in set(self.ship_sizes):
 
             ship_size_count = self.ship_sizes.count(ship_size)
@@ -146,6 +161,8 @@ class Board:
             ship_size_p_map = np.zeros((n_rows, n_cols))
 
             placements = self.get_valid_placements(ship_size)
+
+            all_valid_placements += placements*ship_size_count
 
             for placement in placements:
 
@@ -157,33 +174,58 @@ class Board:
                     if self.board[r, c] == Board.UNKNOWN:
                         padding_punishment += 1
 
+                n_unknown = n_rows*n_cols - np.count_nonzero(self.board)
+
+                padding_punishment /= (sum(self.ship_sizes))/n_unknown
+
                 for r, c in placement:
                     ship_size_p_map[r, c] += 1/padding_punishment
 
             ship_size_p_map /= len(placements)
 
-            ship_size_p_map /= np.sum(ship_size_p_map)/ship_size
+            ship_size_p_map *= ship_size/np.sum(ship_size_p_map)
 
-            probability_map *= (1 - ship_size_p_map)
+            probability_map *= (1 - ship_size_p_map)**ship_size_count
 
-        probability_map = 1 - probability_map
+        probability_map = (1 - probability_map)
 
-        hit_spots = []
+        row_ind, col_ind = np.where(self.board == Board.HIT)
+
+        hit_coords = list(zip(row_ind, col_ind))
+
+        for hit_coord in hit_coords:
+
+            placements_on_hit_coord = [
+                p for p in all_valid_placements if hit_coord in p]
+
+            print(placements_on_hit_coord)
+
+            all_coords = []
+
+            for placement in placements_on_hit_coord:
+                for coord in placement:
+                    all_coords.append(coord)
+
+            for coord in self.get_orthogonals(hit_coord):
+                probability_map[coord] = all_coords.count(
+                    coord)/len(placements_on_hit_coord)
 
         self.probability_map = probability_map
 
     def best_possible_shot(self):
 
         m = 0
+        m_rim = 0
         best_shots = []
 
         for row in range(self.board_sizes[0]):
             for col in range(self.board_sizes[1]):
                 cell_value = self.board[row, col]
-                if self.probability_map[row][col] > m and cell_value == Board.UNKNOWN:
-                    m = self.probability_map[row][col]
+                if self.probability_map[row, col] > m and cell_value == Board.UNKNOWN:
+                    m = self.probability_map[row, col]
                     best_shots = [(row, col)]
-                if self.probability_map[row][col] == m and cell_value == Board.UNKNOWN:
+                if self.probability_map[row, col] == m and cell_value == Board.UNKNOWN and self.rim_job[row, col] > m_rim:
+                    m_rim = self.rim_job[row, col]
                     best_shots.append((row, col))
 
         return random.choice(best_shots)
@@ -448,19 +490,6 @@ test_board3 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
                [(6, 6), (6, 7)]]
 
 
-test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=0)
-test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=0)
-test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=0)
-
-
-# # Constants
-# BOARD_SIZES = 4, 4  # Standard Battleship board size is 10x10
-# SHIP_SIZES = [2, 2]  # Standard Battleship ship sizes
-
-# board = Board(BOARD_SIZES, SHIP_SIZES)
-
-# board.update_board_value((0, 0), Board.HIT)
-
-# for p in board.get_valid_placements(2):
-#     print(p)
-#     print_placement(p, (4, 4))
+# test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=2)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=2)
+# test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=2)
