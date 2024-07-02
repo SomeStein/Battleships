@@ -1,7 +1,6 @@
 import numpy as np
 import random
 import math
-
 import re
 
 
@@ -43,32 +42,41 @@ class Board:
         self.board_sizes = board_sizes
         self.ship_sizes = ship_sizes
 
-        self.board = np.zeros((self.board_sizes[0], self.board_sizes[1]), dtype=np.uint8)
+        self.board = np.zeros(
+            (self.board_sizes[0], self.board_sizes[1]), dtype=np.uint8)
 
         self.num_all_placements = {}
         for ship_size in set(self.ship_sizes):
             num = len(self.get_possible_placements(ship_size))
             self.num_all_placements[ship_size] = num
-        
+
         self.rim_job = np.zeros((self.board_sizes[0], self.board_sizes[1]))
-        
+
         for row in range(self.board_sizes[0]):
             for col in range(self.board_sizes[1]):
                 y = row-(self.board_sizes[0]-1)/2
                 x = col-(self.board_sizes[1]-1)/2
-                self.rim_job[row,col] = (abs(x) + abs(y))*2 + 1
-        
+                self.rim_job[row, col] = (abs(x) + abs(y))*2 + 1
+
         weights = [[0.77294118, 0.71882353, 0.89294118, 0.84588235, 0.83411765, 0.83411765, 0.84588235, 0.89294118, 0.71882353, 0.77294118],
-                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294, 0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
-                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176, 0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
-                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118, 0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
-                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
-                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
-                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118, 0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
-                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176, 0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
-                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294, 0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
+                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294,
+                       0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
+                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176,
+                       0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
+                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118,
+                       0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
+                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,
+                       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
+                   [0.83411765, 0.34235294, 0.62941176, 0.49294118, 0.54,
+                       0.54,       0.49294118, 0.62941176, 0.34235294, 0.83411765],
+                   [0.84588235, 0.33058824, 0.59411765, 0.45058824, 0.49294118,
+                       0.49294118, 0.45058824, 0.59411765, 0.33058824, 0.84588235],
+                   [0.89294118, 0.43882353, 0.69058824, 0.59411765, 0.62941176,
+                       0.62941176, 0.59411765, 0.69058824, 0.43882353, 0.89294118],
+                   [0.71882353, 0.31176471, 0.43882353, 0.33058824, 0.34235294,
+                       0.34235294, 0.33058824, 0.43882353, 0.31176471, 0.71882353],
                    [0.77294118, 0.71882353, 0.89294118, 0.84588235, 0.83411765, 0.83411765, 0.84588235, 0.89294118, 0.71882353, 0.77294118]]
-                
+
         self.rim_job = np.array(weights)
 
     def get_padding(self, ship_coords):
@@ -80,11 +88,12 @@ class Board:
         bh = self.board_sizes[0]
         bw = self.board_sizes[1]
 
-        padding_coords = [(r, c) for r in range(r_s, r_e) for c in range(c_s, c_e) if (r, c) not in ship_coords and 0<= r < bh and 0 <= c < bw]
-        
+        padding_coords = [(r, c) for r in range(r_s, r_e) for c in range(
+            c_s, c_e) if (r, c) not in ship_coords and 0 <= r < bh and 0 <= c < bw]
+
         return padding_coords
 
-    def get_possible_placements(self, ship_size, valid_test = False):
+    def get_possible_placements(self, ship_size, valid_test=False):
 
         placements = []
 
@@ -95,7 +104,7 @@ class Board:
                     ship_coords = [(row, c)
                                    for c in range(col, col + ship_size)]
 
-                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r,c in ship_coords):
+                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
 
                         padding = self.get_padding(ship_coords)
 
@@ -114,95 +123,99 @@ class Board:
                         if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS for r, c in padding):
 
                             placements.append(ship_coords)
-                            
+
                 if valid_test and len(placements) > 1:
                     return True
-                            
+
         return placements
 
     def get_valid_placements(self, ship_size):
-        
+
         possible_placements = self.get_possible_placements(ship_size)
-        
+
         valid_placements = []
-        
+
         for placement in possible_placements:
-            
+
             _ship_sizes = self.ship_sizes.copy()
             _ship_sizes.remove(ship_size)
-            
+
             test_board = Board(self.board_sizes, _ship_sizes)
-            
+
             for coord in placement[:-1]:
                 test_board.update_board_value(coord, Board.HIT)
             test_board.update_board_value(placement[-1], Board.SUNK)
-            
+
             row_ind, col_ind = np.where(test_board.board == Board.HIT)
-            
+
             remaining_hit_coords = list(zip(row_ind, col_ind))
-            
-            valid = True 
-            
+
+            valid = True
+
             for _ship_size in set(test_board.ship_sizes):
-                
-                _possible_placements = test_board.get_possible_placements(_ship_size)
-                
+
+                _possible_placements = test_board.get_possible_placements(
+                    _ship_size)
+
                 if len(_possible_placements) < 1:
                     valid = False
                     break
-                
+
                 for _possible_placement in _possible_placements:
-                    
+
                     if len(remaining_hit_coords) == 0:
                         break
-                    
-                    remaining_hit_coords = [coord for coord in remaining_hit_coords if coord not in _possible_placement]
-                    
+
+                    remaining_hit_coords = [
+                        coord for coord in remaining_hit_coords if coord not in _possible_placement]
+
             if len(remaining_hit_coords) > 0:
                 valid = False
-                    
+
             if valid:
                 valid_placements.append(placement)
-                
+
         return valid_placements
-    
+
     def calculate_probability_density(self):
         probability_map = np.zeros((self.board_sizes[0], self.board_sizes[1]))
-        
+
         all_valid_placements = []
 
         for ship_size in set(self.ship_sizes):
-            
+
             ship_size_count = self.ship_sizes.count(ship_size)
 
             placements = self.get_valid_placements(ship_size)
-            
+
             all_valid_placements += placements
 
             for placement in placements:
-                
-                for r,c in placement:
-                    probability_map[r,c] += self.num_all_placements[ship_size]/len(placements)*self.rim_job[r,c]
-                                
-            
+
+                for r, c in placement:
+                    probability_map[r, c] += self.num_all_placements[ship_size] / \
+                        len(placements)*self.rim_job[r, c]
+
         row_ind, col_ind = np.where(self.board == Board.HIT)
-        
-        hit_coords = list(zip(row_ind, col_ind))    
-                
+
+        hit_coords = list(zip(row_ind, col_ind))
+
         for hit_coord in hit_coords:
-            
-            placements_on_hit_coord = [placement for placement in all_valid_placements if hit_coord in placement]
-                    
+
+            placements_on_hit_coord = [
+                placement for placement in all_valid_placements if hit_coord in placement]
+
             bonus = 1000 / len(placements_on_hit_coord)
-                    
+
             for placement in placements_on_hit_coord:
                 for coord in placement:
-                    d = abs(hit_coord[0]-coord[0]) + abs(hit_coord[1] - coord[1])
+                    d = abs(hit_coord[0]-coord[0]) + \
+                        abs(hit_coord[1] - coord[1])
                     if d != 0:
                         probability_map[coord] += bonus
-                        
+
         probability_map /= (np.sum(probability_map) + 1)
-            
+
         self.probability_map = probability_map
 
     def best_possible_shot(self):
@@ -218,11 +231,8 @@ class Board:
                     best_shots = [(row, col)]
                 if self.probability_map[row][col] == m and cell_value == Board.UNKNOWN:
                     best_shots.append((row, col))
-                    
-        furthest = find_furthest_coordinate([(r-(self.board_sizes[0]-1)/2, c-(self.board_sizes[1]-1)/2) for r,c in best_shots])
-        best_shot = (int(furthest[0]+self.board_sizes[0]/2), int(furthest[1]+self.board_sizes[1]/2))
 
-        return best_shot
+        return random.choice(best_shots)
 
     def update_board_value(self, cell, value):
 
@@ -240,13 +250,13 @@ class Board:
                 r, c = row+a, col+b
                 if 0 <= r < self.board_sizes[0] and 0 <= c < self.board_sizes[1]:
                     self.board[r, c] = Board.MISS
-                    
+
             ship_size_counter = 1
 
         elif value == Board.SUNK:
 
             self.board[row, col] = Board.SUNK
-            
+
             ship_size_counter = 1
 
             for a, b in [(a_-1, b_-1) for a_ in range(3) for b_ in range(3)]:
@@ -255,7 +265,8 @@ class Board:
                     if self.board[r, c] == Board.UNKNOWN:
                         self.board[r, c] = Board.MISS
                     elif self.board[r, c] == Board.HIT:
-                        ship_size_counter += self.update_board_value((r, c), Board.SUNK)
+                        ship_size_counter += self.update_board_value(
+                            (r, c), Board.SUNK)
 
         return ship_size_counter
 
@@ -271,7 +282,8 @@ class Board:
                 elif self.board[row, col] == Board.MISS:
                     string += "▒▒▒ "
                 else:
-                    num_str = str(int(self.probability_map[row, col] * 100)) + "%"
+                    num_str = str(
+                        int(self.probability_map[row, col] * 100)) + "%"
                     string += num_str + " " * (4 - len(num_str))
             string += "\n"
         return string
@@ -321,110 +333,120 @@ class Board:
 
             if len(self.ship_sizes) == 0:
                 break
-            
+
+
 def get_shot_value(test_board, shot):
-    
+
     value = Board.MISS
-    
+
     for ship in test_board:
         if shot in ship:
             value = Board.HIT
             ship.remove(shot)
             if len(ship) == 0:
                 value = Board.SUNK
-                
+
     return value
+
 
 def find_furthest_coordinate(coords):
     # Calculate distances from the origin for each coordinate
     distances = [(x, y, math.sqrt(x**2 + y**2)) for x, y in coords]
-    
+
     # Find the maximum distance
     max_distance = max(distances, key=lambda item: item[2])[2]
-    
+
     # Collect all coordinates that have the maximum distance
-    furthest_coords = [(x, y) for x, y, dist in distances if dist == max_distance]
-    
+    furthest_coords = [(x, y)
+                       for x, y, dist in distances if dist == max_distance]
+
     # Select one coordinate at random if there are multiple
-    return random.choice(furthest_coords) 
-      
-def test_game(board_sizes, ship_sizes, test_board):
-     
-    board = Board(board_sizes, ship_sizes)
-    
+    return random.choice(furthest_coords)
+
+
+def test_game(board_sizes, ship_sizes, test_board, verbose=2):
+
+    board = Board(board_sizes, ship_sizes.copy())
+
     k = 0
 
     while True:
-        
+
         import time
-        
-        #time.sleep(0.5)
-        
+
+        # time.sleep(0.5)
+
         board.calculate_probability_density()
         k += 1
-        
+
         print("\nRound num:", k)
-        print(board)#print(np.round(board.probability_map,0))
-        print(board.ship_sizes)
+        if verbose > 1:
+            print(board)  # print(np.round(board.probability_map,0))
+            print(board.ship_sizes)
+
         if len(board.ship_sizes) == 0:
             break
-        
+
         shot = board.best_possible_shot()
-        print("best shot", shot)
-        
+
         value = board.board[shot[0], shot[1]]
         if value != Board.UNKNOWN:
             print("Already known")
             break
-        
+
         value = get_shot_value(test_board, shot)
-        
+
         ship_size = board.update_board_value(shot, value)
-        
-        print(ship_size)
-        
+
+        if verbose > 0:
+            print("best shot", shot)
+            print(ship_size)
+
         if ship_size in board.ship_sizes:
             board.ship_sizes.remove(ship_size)
-      
+
+
 # Constants
 BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
 SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
 
 board = Board(BOARD_SIZES, SHIP_SIZES)
 
-#board.start_game()
+# board.start_game()
 
-test_board1 = [[(4,9),(5,9),(6,9),(7,9),(8,9),(9,9)],
-              [(0,0),(1,0),(2,0),(3,0)],
-              [(6,1),(7,1),(8,1),(9,1)],
-              [(1,6),(1,7),(1,8)],
-              [(3,7),(4,7),(5,7)],
-              [(7,7),(8,7),(9,7)],
-              [(0,3),(0,4)],
-              [(2,2),(3,2)],
-              [(7,3),(7,4)],
-              [(9,4),(9,5)]]
+test_board1 = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9)],
+               [(0, 0), (1, 0), (2, 0), (3, 0)],
+               [(6, 1), (7, 1), (8, 1), (9, 1)],
+               [(1, 6), (1, 7), (1, 8)],
+               [(3, 7), (4, 7), (5, 7)],
+               [(7, 7), (8, 7), (9, 7)],
+               [(0, 3), (0, 4)],
+               [(2, 2), (3, 2)],
+               [(7, 3), (7, 4)],
+               [(9, 4), (9, 5)]]
 
-test_board2 = [[(9,0),(9,1),(9,2),(9,3),(9,4),(9,5)],
-              [(0,6),(0,7),(0,8),(0,9)],
-              [(6,9),(7,9),(8,9),(9,9)],
-              [(1,0),(2,0),(3,0)],
-              [(2,9),(3,9),(4,9)],
-              [(5,0),(6,0),(7,0)],
-              [(0,2),(1,2)],
-              [(0,4),(1,4)],
-              [(2,7),(3,7)],
-              [(8,7),(9,7)]]
+test_board2 = [[(9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5)],
+               [(0, 6), (0, 7), (0, 8), (0, 9)],
+               [(6, 9), (7, 9), (8, 9), (9, 9)],
+               [(1, 0), (2, 0), (3, 0)],
+               [(2, 9), (3, 9), (4, 9)],
+               [(5, 0), (6, 0), (7, 0)],
+               [(0, 2), (1, 2)],
+               [(0, 4), (1, 4)],
+               [(2, 7), (3, 7)],
+               [(8, 7), (9, 7)]]
 
-test_board3 = [[(2,2),(3,2),(4,2),(5,2),(6,2),(7,2)],
-              [(0,8),(1,8),(2,8),(3,8)],
-              [(9,3),(9,4),(9,5),(9,6)],
-              [(1,4),(1,5),(1,6)],
-              [(3,4),(4,4),(5,4)],
-              [(6,9),(7,9),(8,9)],
-              [(0,0),(0,1)],
-              [(3,6),(4,6)],
-              [(5,0),(6,0)],
-              [(6,6),(6,7)]]
+test_board3 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
+               [(0, 8), (1, 8), (2, 8), (3, 8)],
+               [(9, 3), (9, 4), (9, 5), (9, 6)],
+               [(1, 4), (1, 5), (1, 6)],
+               [(3, 4), (4, 4), (5, 4)],
+               [(6, 9), (7, 9), (8, 9)],
+               [(0, 0), (0, 1)],
+               [(3, 6), (4, 6)],
+               [(5, 0), (6, 0)],
+               [(6, 6), (6, 7)]]
 
-test_game(BOARD_SIZES, SHIP_SIZES, test_board1)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=1)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=1)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=1)
