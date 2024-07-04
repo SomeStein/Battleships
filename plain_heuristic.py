@@ -3,6 +3,13 @@ import random
 import math
 import re
 
+# Development
+# Inclusion-Exclusion-Principle
+# Board Generator for validation
+# Human detection (AI)
+# Backtracking for ingame
+# GUI
+
 
 class Board:
 
@@ -34,7 +41,7 @@ class Board:
 
         return padding_coords
 
-    def get_possible_placements(self, ship_size, valid_test=False):
+    def get_placements_ss(self, ship_size, valid_test=False):
 
         placements = []
 
@@ -70,19 +77,19 @@ class Board:
 
         return placements
 
-    def calculate_probability_density(self):
-        probability_map = np.zeros((self.board_sizes[0], self.board_sizes[1]))
+    def get_placements(self):
 
-        # get all possible placements of all ship_sizes
-        # create N_ss number of placements for a ship size
         placements = []
-        N_ss = []
+        N_sn = []
         for ship_size in self.ship_sizes:
-            placements_ss = self.get_possible_placements(ship_size)
+            placements_ss = self.get_placements_ss(ship_size)
             placements.append(placements_ss)
-            N_ss.append(len(placements_ss))
+            N_sn.append(len(placements_ss))
 
-        # create (index : indices of overlap) dictionary
+        return placements, N_sn
+
+    def get_overlap_lookup(self, placements, N_sn):
+
         overlap_lookup = {}
 
         running_index_adder = 0
@@ -118,61 +125,64 @@ class Board:
 
                         overlap_lookup[index][ship_num_2] = N_index_ship_num
 
-                    running_index_adder_2 += len(placements_ss_2)
+                    running_index_adder_2 += N_sn[ship_num_2]
 
-            running_index_adder += N_ss[ship_num]
+            running_index_adder += N_sn[ship_num]
 
-        def ship_num_from_index(index):
+        return overlap_lookup
 
-            running_total = 0
-            for i, N in enumerate(N_ss):
-                running_total += N
-                if index < running_total:
-                    return i
+    def ship_num_from_index(self, index, N_sn):
 
-            return False
+        running_total = 0
+        for i, N in enumerate(N_sn):
+            running_total += N
+            if index < running_total:
+                return i
 
-        # create N_p(index) function
+        return False
 
-        def N(index):
+    def N_p(self, index, N_sn, overlap_lookup):
 
-            # defaulting number with product of all lengths of placements
-            ship_num = ship_num_from_index(index)
+        # defaulting number with product of all lengths of placements
+        ship_num = self.ship_num_from_index(index, N_sn)
 
-            num = 1
+        n_ships = len(N_sn)
 
-            for i in range(len(N_ss)):
-                if i != ship_num:
-                    num *= N_ss[i]
+        num = math.prod(N_sn[i] for i in range(n_ships) if i != ship_num)
 
-            num_overlaps = overlap_lookup[index]
-            for key in num_overlaps:
-                ship_nums = list(range(len(self.ship_sizes)))
-                ship_nums.remove(ship_num)
-                ship_nums.remove(key)
+        return num
 
-                print(ship_nums)
+    def calculate_probability_density(self):
 
-                subtract_num = 1
+        n_rows, n_cols = self.board_sizes[0], self.board_sizes[1]
 
-                for sn in ship_nums:
-                    subtract_num *= N_ss[sn]
+        probability_map = np.zeros((n_rows, n_cols))
 
-                subtract_num *= num_overlaps[key]
+        # get all possible placements of all ship_sizes
+        # get N_sn number of placements for a ship number
+        placements, N_sn = self.get_placements()
 
-                print(num)
+        # get (index : indices of overlap) dictionary
+        overlap_lookup = self.get_overlap_lookup(placements, N_sn)
 
-                num -= subtract_num
+        # for every index add N(index)*placements(index) to probability map
+        total_num_placements = sum(len(p) for p in placements)
 
-            print(num)
+        running_total = 0
+        for j, p_ss in enumerate(placements):
 
-            return num
-        N(0)
+            for i, p in enumerate(p_ss):
+                index = i + running_total
 
-        return placements, N_ss, overlap_lookup
+                for coord in p:
 
-        # for every index add N(index)*placements[index] to probability map
+                    probability_map[coord] += self.N_p(
+                        index, N_sn, overlap_lookup)
+
+            running_total += N_sn[j]
+
         # rescale probability map to left percentage
+        probability_map *= 31/np.sum(probability_map)
 
         self.probability_map = probability_map
 
@@ -246,6 +256,33 @@ class Board:
             string += "\n"
         return string
 
+    def check_and_store_tuple(self, input_string, max_value):
+        # Define regular expression patterns for various formats
+        patterns = [
+            # (int, int) with optional spaces
+            r'^\(\s*(\d+)\s*,\s*(\d+)\s*\)$',
+            r'^\s*(\d+)\s*,\s*(\d+)\s*$',       # int, int with optional spaces
+            # [int, int] with optional spaces
+            r'^\[\s*(\d+)\s*,\s*(\d+)\s*\]$',
+            # {int, int} with optional spaces
+            r'^\{\s*(\d+)\s*,\s*(\d+)\s*\}$'
+        ]
+
+        for pattern in patterns:
+            match = re.match(pattern, input_string)
+            if match:
+                row, col = map(int, match.groups())
+
+                # Check if row and col are within the specified range
+                if 0 <= row < max_value and 0 <= col < max_value:
+                    return (row, col)
+                else:
+                    print("Warning: Values are out of range.")
+                    return None
+
+        print("Warning: The input string is not in the correct format.")
+        return None
+
     def start_game(self):
 
         k = 0
@@ -261,7 +298,7 @@ class Board:
             shot = input("\nBest possible shot is: " +
                          str(best_shot) + "\nEnter shot: ")
 
-            shot = check_and_store_tuple(shot, self.board_sizes[0])
+            shot = self.check_and_store_tuple(shot, self.board_sizes[0])
 
             if not shot:
                 continue
@@ -292,30 +329,46 @@ class Board:
             if len(self.ship_sizes) == 0:
                 break
 
+    def test_game(self, test_board, verbose=2):
 
-def check_and_store_tuple(input_string, max_value):
-    # Define regular expression patterns for various formats
-    patterns = [
-        r'^\(\s*(\d+)\s*,\s*(\d+)\s*\)$',  # (int, int) with optional spaces
-        r'^\s*(\d+)\s*,\s*(\d+)\s*$',       # int, int with optional spaces
-        r'^\[\s*(\d+)\s*,\s*(\d+)\s*\]$',   # [int, int] with optional spaces
-        r'^\{\s*(\d+)\s*,\s*(\d+)\s*\}$'    # {int, int} with optional spaces
-    ]
+        board = Board(self.board_sizes, self.ship_sizes.copy())
 
-    for pattern in patterns:
-        match = re.match(pattern, input_string)
-        if match:
-            row, col = map(int, match.groups())
+        k = 0
 
-            # Check if row and col are within the specified range
-            if 0 <= row < max_value and 0 <= col < max_value:
-                return (row, col)
-            else:
-                print("Warning: Values are out of range.")
-                return None
+        while True:
 
-    print("Warning: The input string is not in the correct format.")
-    return None
+            import time
+
+            # time.sleep(0.5)
+
+            board.calculate_probability_density()
+            k += 1
+
+            print("\nRound num:", k)
+            if verbose > 1:
+                print(board)  # print(np.round(board.probability_map,0))
+                print(board.ship_sizes)
+
+            if len(board.ship_sizes) == 0:
+                break
+
+            shot = board.best_possible_shot()
+
+            value = board.board[shot[0], shot[1]]
+            if value != Board.UNKNOWN:
+                print("Already known")
+                break
+
+            value = get_shot_value(test_board, shot)
+
+            ship_size = board.update_board_value(shot, value)
+
+            if verbose > 0:
+                print("best shot", shot)
+                print(ship_size)
+
+            if ship_size in board.ship_sizes:
+                board.ship_sizes.remove(ship_size)
 
 
 def get_shot_value(test_board, shot):
@@ -332,70 +385,8 @@ def get_shot_value(test_board, shot):
     return value
 
 
-def find_furthest_coordinate(coords):
-    # Calculate distances from the origin for each coordinate
-    distances = [(x, y, math.sqrt(x**2 + y**2)) for x, y in coords]
-
-    # Find the maximum distance
-    max_distance = max(distances, key=lambda item: item[2])[2]
-
-    # Collect all coordinates that have the maximum distance
-    furthest_coords = [(x, y)
-                       for x, y, dist in distances if dist == max_distance]
-
-    # Select one coordinate at random if there are multiple
-    return random.choice(furthest_coords)
-
-
-def test_game(board_sizes, ship_sizes, test_board, verbose=2):
-
-    board = Board(board_sizes, ship_sizes.copy())
-
-    k = 0
-
-    while True:
-
-        import time
-
-        # time.sleep(0.5)
-
-        board.calculate_probability_density()
-        k += 1
-
-        print("\nRound num:", k)
-        if verbose > 1:
-            print(board)  # print(np.round(board.probability_map,0))
-            print(board.ship_sizes)
-
-        if len(board.ship_sizes) == 0:
-            break
-
-        shot = board.best_possible_shot()
-
-        value = board.board[shot[0], shot[1]]
-        if value != Board.UNKNOWN:
-            print("Already known")
-            break
-
-        value = get_shot_value(test_board, shot)
-
-        ship_size = board.update_board_value(shot, value)
-
-        if verbose > 0:
-            print("best shot", shot)
-            print(ship_size)
-
-        if ship_size in board.ship_sizes:
-            board.ship_sizes.remove(ship_size)
-
-
 # Constants
 BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
 SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
 
 board = Board(BOARD_SIZES, SHIP_SIZES)
-
-placements, N_ss, overlap_lookup = board.calculate_probability_density()
-
-# for key in overlap_lookup:
-#     print(key, ":", overlap_lookup[key])
