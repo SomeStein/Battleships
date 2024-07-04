@@ -161,7 +161,7 @@ class Board:
 
             ship_size_p_map = np.zeros((n_rows, n_cols))
 
-            placements = self.get_possible_placements(ship_size)
+            placements = self.get_valid_placements(ship_size)
 
             all_valid_placements += placements * ship_size_count
 
@@ -513,11 +513,23 @@ test_board4 = [[(4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7)],
                [(8, 3), (8, 4)],
                [(8, 6), (8, 7)]]
 
+test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
+               [(2, 5), (2, 6), (2, 7), (2, 8)],
+               [(5, 6), (5, 7), (5, 8), (5, 9)],
+               [(4, 4), (5, 4), (6, 4)],
+               [(9, 1), (9, 2), (9, 3)],
+               [(9, 6), (9, 7), (9, 8)],
+               [(0, 0), (0, 1)],
+               [(0, 7), (0, 8)],
+               [(3, 0), (4, 0)],
+               [(7, 7), (7, 8)]]
 
-# test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=0)
-# test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=0)
-# test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=0)
-# test_game(BOARD_SIZES, SHIP_SIZES, test_board4, verbose=0)
+
+test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=0)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=0)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=0)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board4, verbose=0)
+test_game(BOARD_SIZES, SHIP_SIZES, test_board5, verbose=0)
 
 
 # Development:
@@ -527,67 +539,3 @@ test_board4 = [[(4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7)],
 # valid placements (deeper recursion)
 # better finder (deeper recursion)
 # p rescale 3100% - hit_group% = left%
-
-
-# Constants
-BOARD_SIZES = 4, 4  # Standard Battleship board size is 10x10
-SHIP_SIZES = [3, 2]  # Standard Battleship ship sizes
-
-board = Board(BOARD_SIZES, SHIP_SIZES)
-
-board.update_board_value((2, 0), Board.MISS)
-
-placements = []
-indices = []
-
-overlapping_indices_lookup = {}
-
-p_num = 0
-
-for ship_num, ship_size in enumerate(board.ship_sizes):
-    indices.append(list(range(len(placements))))
-    placements = board.get_possible_placements(ship_size)
-
-    for p in placements:
-
-        padding = board.get_padding(p)
-
-        check_cells = p + padding
-
-        overlap_indices = set()
-
-        p_num_adder = 0
-
-        for ship_num_2, ship_size in enumerate(board.ship_sizes):
-
-            placements_2 = board.get_possible_placements(ship_size)
-
-            if ship_num != ship_num_2:
-
-                for j, p_2 in enumerate(placements_2):
-
-                    for coord in p_2:
-                        if coord in check_cells:
-                            overlap_indices.add(j+p_num_adder)
-
-            p_num_adder += len(placements_2)
-
-        overlapping_indices_lookup[p_num] = overlap_indices
-
-        print(p_num, ":", p, ",", len(overlapping_indices_lookup[p_num]))
-
-        p_num += 1
-
-
-all_possible_boards = itertools.product(*indices)
-
-
-def check_overlap(indices_board):
-    for i, index in enumerate(indices_board):
-        p_1_index = indices_board[i]
-        overlap_indices = overlapping_indices_lookup[p_1_index]
-        for j in range(i+1, len(indices_board)):
-            if indices_board[j] in overlap_indices:
-                return False
-
-    return True
