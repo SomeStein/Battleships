@@ -1,3 +1,4 @@
+from operator import pos
 import numpy as np
 import sys
 
@@ -147,13 +148,14 @@ def recursion(ship_positions: dict[int, set[int]], filter_lookup: dict[int, set[
 
     if len(ranges) == 0:  # base case
         global k
+        k += 1
         if k % 1_000_000 == 0:
             draw_board(pos_ids, ship_positions, ship_positions["board_size"])
             ranges_int = ship_positions["ranges_int"]
             scaled_pos_ids = [a-b for (a, b) in zip(pos_ids, ranges_int)]
             print(scaled_pos_ids)
             print("\033[H", end="")
-        k += 1
+
         return
 
     for id in sorted(list(ranges[0])):
@@ -171,7 +173,7 @@ def recursion(ship_positions: dict[int, set[int]], filter_lookup: dict[int, set[
 
 
 ships = [("Schlachtschiff", 6, 1), ("Kreuzer", 4, 1),
-         ("Zerstörer", 3, 1), ("UBoot", 2, 1)]
+         ("Zerstörer", 3, 2), ("UBoot", 2, 1)]
 
 board_size = (10, 10)
 
@@ -181,4 +183,5 @@ filter_lookup = generate_filter_lookup(ship_positions, ranges)
 
 redundancy = {1: {1}, 3: {1, 2}, 4: {1}, 6: {1, 2, 3}, 7: {1, 2}, 8: {1}}
 redundancy = {}
-recursion(ship_positions, filter_lookup, ranges, redundancy)
+recursion(
+    ship_positions, filter_lookup, ranges, redundancy)

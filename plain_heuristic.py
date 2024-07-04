@@ -2,6 +2,7 @@ import numpy as np
 import random
 import math
 import re
+import itertools
 
 
 class Board:
@@ -160,34 +161,34 @@ class Board:
 
             ship_size_p_map = np.zeros((n_rows, n_cols))
 
-            placements = self.get_valid_placements(ship_size)
+            placements = self.get_possible_placements(ship_size)
 
-            all_valid_placements += placements*ship_size_count
+            all_valid_placements += placements * ship_size_count
 
             for placement in placements:
 
                 padding = self.get_padding((placement))
 
-                padding_punishment = 1
+                padding_count = 1
 
                 for r, c in padding:
                     if self.board[r, c] == Board.UNKNOWN:
-                        padding_punishment += 1
+                        padding_count += 1
 
                 n_unknown = n_rows*n_cols - np.count_nonzero(self.board)
 
-                padding_punishment /= (sum(self.ship_sizes))/n_unknown
+                p = n_unknown / padding_count / sum(self.ship_sizes)
 
                 for r, c in placement:
-                    ship_size_p_map[r, c] += 1/padding_punishment
+                    ship_size_p_map[r, c] += p
 
-            ship_size_p_map /= len(placements)
+            ship_size_p_map /= np.sum(ship_size_p_map)  # len(placements)
 
-            ship_size_p_map *= ship_size/np.sum(ship_size_p_map)
-
-            probability_map *= (1 - ship_size_p_map)**ship_size_count
+            probability_map *= (1 - ship_size_p_map)  # ** ship_size_count
 
         probability_map = (1 - probability_map)
+
+        probability_map *= sum(self.ship_sizes)/np.sum(probability_map)
 
         row_ind, col_ind = np.where(self.board == Board.HIT)
 
@@ -198,17 +199,21 @@ class Board:
             placements_on_hit_coord = [
                 p for p in all_valid_placements if hit_coord in p]
 
-            print(placements_on_hit_coord)
-
             all_coords = []
 
             for placement in placements_on_hit_coord:
                 for coord in placement:
                     all_coords.append(coord)
 
-            for coord in self.get_orthogonals(hit_coord):
+            # for coord in self.get_orthogonals(hit_coord):
+            #     probability_map[coord] = all_coords.count(
+            #         coord)/len(placements_on_hit_coord)
+
+            for coord in set(all_coords):
                 probability_map[coord] = all_coords.count(
                     coord)/len(placements_on_hit_coord)
+
+        probability_map *= sum(self.ship_sizes)/np.sum(probability_map)
 
         self.probability_map = probability_map
 
@@ -329,6 +334,9 @@ class Board:
             if len(self.ship_sizes) == 0:
                 break
 
+    def generate_states(self):
+        pass
+
 
 def check_and_store_tuple(input_string, max_value):
     # Define regular expression patterns for various formats
@@ -399,12 +407,17 @@ def test_game(board_sizes, ship_sizes, test_board, verbose=2):
         board.calculate_probability_density()
         k += 1
 
-        print("\nRound num:", k)
+        if verbose == 0:
+            print(k, end="\r")
+
+        if verbose > 0:
+            print("\nRound num:", k)
         if verbose > 1:
             print(board)  # print(np.round(board.probability_map,0))
             print(board.ship_sizes)
 
         if len(board.ship_sizes) == 0:
+            print(f"took {k} rounds")
             break
 
         shot = board.best_possible_shot()
@@ -489,7 +502,92 @@ test_board3 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
                [(5, 0), (6, 0)],
                [(6, 6), (6, 7)]]
 
+test_board4 = [[(4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7)],
+               [(0, 4), (0, 5), (0, 6), (0, 7)],
+               [(2, 4), (2, 5), (2, 6), (2, 7)],
+               [(0, 2), (1, 2), (2, 2)],
+               [(6, 2), (6, 3), (6, 4)],
+               [(6, 6), (6, 7), (6, 8)],
+               [(5, 0), (6, 0)],
+               [(8, 0), (8, 1)],
+               [(8, 3), (8, 4)],
+               [(8, 6), (8, 7)]]
 
-# test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=2)
-test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=2)
-# test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=2)
+
+# test_game(BOARD_SIZES, SHIP_SIZES, test_board1, verbose=0)
+# test_game(BOARD_SIZES, SHIP_SIZES, test_board2, verbose=0)
+# test_game(BOARD_SIZES, SHIP_SIZES, test_board3, verbose=0)
+# test_game(BOARD_SIZES, SHIP_SIZES, test_board4, verbose=0)
+
+
+# Development:
+# hit_coord_groups
+# cross hit group and finder
+# ninja star
+# valid placements (deeper recursion)
+# better finder (deeper recursion)
+# p rescale 3100% - hit_group% = left%
+
+
+# Constants
+BOARD_SIZES = 4, 4  # Standard Battleship board size is 10x10
+SHIP_SIZES = [3, 2]  # Standard Battleship ship sizes
+
+board = Board(BOARD_SIZES, SHIP_SIZES)
+
+board.update_board_value((2, 0), Board.MISS)
+
+placements = []
+indices = []
+
+overlapping_indices_lookup = {}
+
+p_num = 0
+
+for ship_num, ship_size in enumerate(board.ship_sizes):
+    indices.append(list(range(len(placements))))
+    placements = board.get_possible_placements(ship_size)
+
+    for p in placements:
+
+        padding = board.get_padding(p)
+
+        check_cells = p + padding
+
+        overlap_indices = set()
+
+        p_num_adder = 0
+
+        for ship_num_2, ship_size in enumerate(board.ship_sizes):
+
+            placements_2 = board.get_possible_placements(ship_size)
+
+            if ship_num != ship_num_2:
+
+                for j, p_2 in enumerate(placements_2):
+
+                    for coord in p_2:
+                        if coord in check_cells:
+                            overlap_indices.add(j+p_num_adder)
+
+            p_num_adder += len(placements_2)
+
+        overlapping_indices_lookup[p_num] = overlap_indices
+
+        print(p_num, ":", p, ",", len(overlapping_indices_lookup[p_num]))
+
+        p_num += 1
+
+
+all_possible_boards = itertools.product(*indices)
+
+
+def check_overlap(indices_board):
+    for i, index in enumerate(indices_board):
+        p_1_index = indices_board[i]
+        overlap_indices = overlapping_indices_lookup[p_1_index]
+        for j in range(i+1, len(indices_board)):
+            if indices_board[j] in overlap_indices:
+                return False
+
+    return True
