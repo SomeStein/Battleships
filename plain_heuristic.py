@@ -2,9 +2,12 @@ import numpy as np
 import random
 import math
 import re
+import itertools
+import time
 
 # Development
-# Inclusion-Exclusion-Principle
+# optimizing ship size duplicates for lookup generation
+# Inclusion-Exclusion-Principle for hit groups
 # Board Generator for validation
 # Human detection (AI)
 # Backtracking for ingame
@@ -24,31 +27,34 @@ class Board:
         self.board_sizes = board_sizes
         self.ship_sizes = ship_sizes
 
-        self.board = np.zeros(
-            (self.board_sizes[0], self.board_sizes[1]), dtype=np.uint8)
+        n_rows, n_cols = self.board_sizes
+
+        self.board = np.zeros((n_rows, n_cols), dtype=np.uint8)
 
     def get_padding(self, ship_coords):
+
+        n_rows, n_cols = self.board_sizes
 
         r_s = ship_coords[0][0]-1
         r_e = ship_coords[-1][0]+2
         c_s = ship_coords[0][1]-1
         c_e = ship_coords[-1][1]+2
-        bh = self.board_sizes[0]
-        bw = self.board_sizes[1]
 
         padding_coords = [(r, c) for r in range(r_s, r_e) for c in range(
-            c_s, c_e) if (r, c) not in ship_coords and 0 <= r < bh and 0 <= c < bw]
+            c_s, c_e) if (r, c) not in ship_coords and 0 <= r < n_rows and 0 <= c < n_cols]
 
         return padding_coords
 
-    def get_placements_ss(self, ship_size, valid_test=False):
+    def get_placements_ss(self, ship_size):
 
         placements = []
 
-        for row in range(self.board_sizes[0]):
-            for col in range(self.board_sizes[1]):
+        n_rows, n_cols = self.board_sizes
 
-                if col <= self.board_sizes[1] - ship_size:
+        for row in range(n_rows):
+            for col in range(n_cols):
+
+                if col <= n_cols - ship_size:
                     ship_coords = [(row, c)
                                    for c in range(col, col + ship_size)]
 
@@ -60,20 +66,17 @@ class Board:
 
                             placements.append(ship_coords)
 
-                if row <= self.board_sizes[0] - ship_size:
+                if row <= n_rows - ship_size:
                     ship_coords = [(r, col)
                                    for r in range(row, row + ship_size)]
 
-                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords):
+                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
 
                         padding = self.get_padding(ship_coords)
 
                         if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS for r, c in padding):
 
                             placements.append(ship_coords)
-
-                if valid_test and len(placements) > 1:
-                    return True
 
         return placements
 
@@ -100,30 +103,28 @@ class Board:
 
                 index = i + running_index_adder
                 check_cells = p + self.get_padding(p)
-                overlap_lookup[index] = {}
+                overlap_lookup[index] = []
 
                 running_index_adder_2 = 0
 
                 for ship_num_2, placements_ss_2 in enumerate(placements):
 
-                    if ship_num != ship_num_2:
+                    overlap_lookup[index].append(set())
 
-                        overlap_lookup[index][ship_num_2] = set()
+                    for j, p_2 in enumerate(placements_ss_2):
 
-                        for j, p_2 in enumerate(placements_ss_2):
+                        index_2 = j + running_index_adder_2
 
-                            index_2 = j + running_index_adder_2
+                        for cell in p_2:
+                            if cell in check_cells:
 
-                            for cell in p_2:
-                                if cell in check_cells:
+                                overlap_lookup[index][-1].add(
+                                    index_2)
 
-                                    overlap_lookup[index][ship_num_2].add(
-                                        index_2)
+                    N_index_ship_num = len(
+                        overlap_lookup[index][-1])
 
-                        N_index_ship_num = len(
-                            overlap_lookup[index][ship_num_2])
-
-                        overlap_lookup[index][ship_num_2] = N_index_ship_num
+                    overlap_lookup[index][-1] = N_index_ship_num
 
                     running_index_adder_2 += N_sn[ship_num_2]
 
@@ -141,20 +142,46 @@ class Board:
 
         return False
 
-    def N_p(self, index, N_sn, overlap_lookup):
+    def N_p(self, index, N_sn, lu):
 
-        # defaulting number with product of all lengths of placements
+        # which ship is being placed
         ship_num = self.ship_num_from_index(index, N_sn)
 
-        n_ships = len(N_sn)
+        # how many ships are left
+        n_ships = len(self.ship_sizes)
 
-        num = math.prod(N_sn[i] for i in range(n_ships) if i != ship_num)
+        # indices of remaining ships without current ship
+        ship_nums = list(range(n_ships))
+        ship_nums.remove(ship_num)
+
+        # how many indices can be picked for Inculsion-Exclusion
+        n = len(ship_nums)
+
+        # tracking variables
+        sign = 1
+        num = 0
+
+        # choice lengths from 0 to n (all placements valid to all intersections)
+        for k in range(n+1):
+
+            # for choices of length k
+            combs = itertools.combinations(ship_nums, k)
+
+            # for one choice multiply intersection sizes and placements sizes
+            for comb in combs:
+
+                prod = math.prod([lu[i] if i in comb else N_sn[i]
+                                 for i in ship_nums])
+
+                num += sign * prod
+
+            sign *= -1
 
         return num
 
     def calculate_probability_density(self):
 
-        n_rows, n_cols = self.board_sizes[0], self.board_sizes[1]
+        n_rows, n_cols = self.board_sizes
 
         probability_map = np.zeros((n_rows, n_cols))
 
@@ -164,25 +191,26 @@ class Board:
 
         # get (index : indices of overlap) dictionary
         overlap_lookup = self.get_overlap_lookup(placements, N_sn)
-
-        # for every index add N(index)*placements(index) to probability map
-        total_num_placements = sum(len(p) for p in placements)
+        # for every index add P(index)*placements(index) to probability map
 
         running_total = 0
         for j, p_ss in enumerate(placements):
 
             for i, p in enumerate(p_ss):
+
                 index = i + running_total
+
+                N = self.N_p(index, N_sn, overlap_lookup[index])
 
                 for coord in p:
 
-                    probability_map[coord] += self.N_p(
-                        index, N_sn, overlap_lookup)
+                    probability_map[coord] += N
 
             running_total += N_sn[j]
 
         # rescale probability map to left percentage
-        probability_map *= 31/np.sum(probability_map)
+        probability_map *= sum(self.ship_sizes) / \
+            (np.sum(probability_map) + 10**(-30))
 
         self.probability_map = probability_map
 
@@ -191,8 +219,10 @@ class Board:
         m = 0
         best_shots = []
 
-        for row in range(self.board_sizes[0]):
-            for col in range(self.board_sizes[1]):
+        n_rows, n_cols = self.board_sizes
+
+        for row in range(n_rows):
+            for col in range(n_cols):
                 cell_value = self.board[row, col]
                 if self.probability_map[row][col] > m and cell_value == Board.UNKNOWN:
                     m = self.probability_map[row][col]
@@ -206,6 +236,8 @@ class Board:
 
         ship_size_counter = 0
 
+        n_rows, n_cols = self.board_sizes
+
         row, col = cell
 
         if value == Board.MISS:
@@ -216,7 +248,7 @@ class Board:
 
             for a, b in [(1, 1), (1, -1), (-1, 1), (-1, -1)]:
                 r, c = row+a, col+b
-                if 0 <= r < self.board_sizes[0] and 0 <= c < self.board_sizes[1]:
+                if 0 <= r < n_rows and 0 <= c < n_cols:
                     self.board[r, c] = Board.MISS
 
             ship_size_counter = 1
@@ -229,7 +261,7 @@ class Board:
 
             for a, b in [(a_-1, b_-1) for a_ in range(3) for b_ in range(3)]:
                 r, c = row+a, col+b
-                if 0 <= r < self.board_sizes[0] and 0 <= c < self.board_sizes[1]:
+                if 0 <= r < n_rows and 0 <= c < n_cols:
                     if self.board[r, c] == Board.UNKNOWN:
                         self.board[r, c] = Board.MISS
                     elif self.board[r, c] == Board.HIT:
@@ -240,9 +272,11 @@ class Board:
 
     def __str__(self):
 
+        n_rows, n_cols = self.board_sizes
+
         string = ""
-        for row in range(self.board_sizes[0]):
-            for col in range(self.board_sizes[1]):
+        for row in range(n_rows):
+            for col in range(n_cols):
                 if self.board[row, col] == Board.HIT:
                     string += "⌷⌷⌷ "
                 elif self.board[row, col] == Board.SUNK:
@@ -287,6 +321,8 @@ class Board:
 
         k = 0
 
+        n_rows, n_cols = self.board_sizes
+
         while True:
             self.calculate_probability_density()
             k += 1
@@ -298,7 +334,7 @@ class Board:
             shot = input("\nBest possible shot is: " +
                          str(best_shot) + "\nEnter shot: ")
 
-            shot = self.check_and_store_tuple(shot, self.board_sizes[0])
+            shot = self.check_and_store_tuple(shot, n_rows)
 
             if not shot:
                 continue
@@ -337,19 +373,21 @@ class Board:
 
         while True:
 
-            import time
-
-            # time.sleep(0.5)
-
             board.calculate_probability_density()
             k += 1
 
-            print("\nRound num:", k)
+            if verbose == 0:
+                print("Round num:", k, end="\r")
+
+            else:
+                print("\n Round num", k)
+
             if verbose > 1:
                 print(board)  # print(np.round(board.probability_map,0))
                 print(board.ship_sizes)
 
             if len(board.ship_sizes) == 0:
+                print("Took", k, "Rounds")
                 break
 
             shot = board.best_possible_shot()
@@ -390,3 +428,71 @@ BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
 SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
 
 board = Board(BOARD_SIZES, SHIP_SIZES)
+
+# lu = board.get_overlap_lookup(*board.get_placements())
+
+# for key in lu:
+#     s = lu[key]
+#     print(key, s)
+
+test_board1 = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9)],
+               [(0, 0), (1, 0), (2, 0), (3, 0)],
+               [(6, 1), (7, 1), (8, 1), (9, 1)],
+               [(1, 6), (1, 7), (1, 8)],
+               [(3, 7), (4, 7), (5, 7)],
+               [(7, 7), (8, 7), (9, 7)],
+               [(0, 3), (0, 4)],
+               [(2, 2), (3, 2)],
+               [(7, 3), (7, 4)],
+               [(9, 4), (9, 5)]]
+
+test_board2 = [[(9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5)],
+               [(0, 6), (0, 7), (0, 8), (0, 9)],
+               [(6, 9), (7, 9), (8, 9), (9, 9)],
+               [(1, 0), (2, 0), (3, 0)],
+               [(2, 9), (3, 9), (4, 9)],
+               [(5, 0), (6, 0), (7, 0)],
+               [(0, 2), (1, 2)],
+               [(0, 4), (1, 4)],
+               [(2, 7), (3, 7)],
+               [(8, 7), (9, 7)]]
+
+test_board3 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
+               [(0, 8), (1, 8), (2, 8), (3, 8)],
+               [(9, 3), (9, 4), (9, 5), (9, 6)],
+               [(1, 4), (1, 5), (1, 6)],
+               [(3, 4), (4, 4), (5, 4)],
+               [(6, 9), (7, 9), (8, 9)],
+               [(0, 0), (0, 1)],
+               [(3, 6), (4, 6)],
+               [(5, 0), (6, 0)],
+               [(6, 6), (6, 7)]]
+
+test_board4 = [[(4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7)],
+               [(0, 4), (0, 5), (0, 6), (0, 7)],
+               [(2, 4), (2, 5), (2, 6), (2, 7)],
+               [(0, 2), (1, 2), (2, 2)],
+               [(6, 2), (6, 3), (6, 4)],
+               [(6, 6), (6, 7), (6, 8)],
+               [(5, 0), (6, 0)],
+               [(8, 0), (8, 1)],
+               [(8, 3), (8, 4)],
+               [(8, 6), (8, 7)]]
+
+test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
+               [(2, 5), (2, 6), (2, 7), (2, 8)],
+               [(5, 6), (5, 7), (5, 8), (5, 9)],
+               [(4, 4), (5, 4), (6, 4)],
+               [(9, 1), (9, 2), (9, 3)],
+               [(9, 6), (9, 7), (9, 8)],
+               [(0, 0), (0, 1)],
+               [(0, 7), (0, 8)],
+               [(3, 0), (4, 0)],
+               [(7, 7), (7, 8)]]
+
+
+board.test_game(test_board1, verbose=2)
+board.test_game(test_board2, verbose=0)
+board.test_game(test_board3, verbose=0)
+board.test_game(test_board4, verbose=0)
+board.test_game(test_board5, verbose=0)
