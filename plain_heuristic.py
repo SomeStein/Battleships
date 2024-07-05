@@ -1,3 +1,5 @@
+
+from collections import deque
 import numpy as np
 import random
 import math
@@ -45,7 +47,7 @@ class Board:
 
         return padding_coords
 
-    def get_placements_ss(self, ship_size):
+    def get_placements_ss(self, ship_size, hit_cells):
 
         placements = []
 
@@ -58,120 +60,107 @@ class Board:
                     ship_coords = [(row, c)
                                    for c in range(col, col + ship_size)]
 
-                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
+                    if all(coord not in hit_cells for coord in ship_coords):
 
-                        padding = self.get_padding(ship_coords)
+                        if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
 
-                        if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS for r, c in padding):
+                            padding = self.get_padding(ship_coords)
 
-                            placements.append(ship_coords)
+                            if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS for r, c in padding):
+
+                                placements.append(ship_coords)
 
                 if row <= n_rows - ship_size:
                     ship_coords = [(r, col)
                                    for r in range(row, row + ship_size)]
 
-                    if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
+                    if all(coord not in hit_cells for coord in ship_coords):
 
-                        padding = self.get_padding(ship_coords)
+                        if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
 
-                        if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS for r, c in padding):
+                            padding = self.get_padding(ship_coords)
 
-                            placements.append(ship_coords)
+                            if all(self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS for r, c in padding):
+
+                                placements.append(ship_coords)
 
         return placements
 
-    def get_placements(self):
+    def get_placements(self, comb):
 
-        placements = []
-        N_sn = []
-        for ship_size in self.ship_sizes:
-            placements_ss = self.get_placements_ss(ship_size)
-            placements.append(placements_ss)
-            N_sn.append(len(placements_ss))
+        hit_cells = []
+        for hit_group in comb:
+            hit_cells += hit_group
 
-        return placements, N_sn
+        placements = {}
+        for ship_size in set(self.ship_sizes):
+            placements[ship_size] = self.get_placements_ss(
+                ship_size, set(hit_cells))
 
-    def get_overlap_lookup(self, placements, N_sn):
+        return placements
 
-        overlap_lookup = {}
+    def get_N_overlap(self, placements):
 
-        running_index_adder = 0
+        N_overlap = {}
+        N_ship_size = {}
 
-        for ship_num, placements_ss in enumerate(placements):
+        for ship_size_1 in set(self.ship_sizes):
+            placements_ss = placements[ship_size_1]
+            N_ship_size[ship_size_1] = len(placements_ss)
 
-            for i, p in enumerate(placements_ss):
+            index = 0
 
-                index = i + running_index_adder
+            for p in placements_ss:
+
                 check_cells = p + self.get_padding(p)
-                overlap_lookup[index] = []
 
-                running_index_adder_2 = 0
+                for ship_size_2 in set(self.ship_sizes):
+                    placements_ss_2 = placements[ship_size_2]
 
-                for ship_num_2, placements_ss_2 in enumerate(placements):
+                    overlap_indices = set()
 
-                    overlap_lookup[index].append(set())
+                    index_2 = 0
 
-                    for j, p_2 in enumerate(placements_ss_2):
+                    for p_2 in placements_ss_2:
 
-                        index_2 = j + running_index_adder_2
+                        index_2 += 1
 
                         for cell in p_2:
                             if cell in check_cells:
+                                overlap_indices.add(index_2)
 
-                                overlap_lookup[index][-1].add(
-                                    index_2)
+                    N = len(overlap_indices)
 
-                    N_index_ship_num = len(
-                        overlap_lookup[index][-1])
+                    N_overlap[ship_size_1, index, ship_size_2] = N
 
-                    overlap_lookup[index][-1] = N_index_ship_num
+                index += 1
 
-                    running_index_adder_2 += N_sn[ship_num_2]
+        return N_overlap, N_ship_size
 
-            running_index_adder += N_sn[ship_num]
+    def N_p(self, N_overlap, N_ship_size, ship_size, index):
 
-        return overlap_lookup
-
-    def ship_num_from_index(self, index, N_sn):
-
-        running_total = 0
-        for i, N in enumerate(N_sn):
-            running_total += N
-            if index < running_total:
-                return i
-
-        return False
-
-    def N_p(self, index, N_sn, lu):
-
-        # which ship is being placed
-        ship_num = self.ship_num_from_index(index, N_sn)
-
-        # how many ships are left
-        n_ships = len(self.ship_sizes)
-
-        # indices of remaining ships without current ship
-        ship_nums = list(range(n_ships))
-        ship_nums.remove(ship_num)
-
-        # how many indices can be picked for Inculsion-Exclusion
-        n = len(ship_nums)
+        ship_sizes = self.ship_sizes.copy()
+        ship_sizes.remove(ship_size)
 
         # tracking variables
         sign = 1
         num = 0
+        n = len(ship_sizes)
 
         # choice lengths from 0 to n (all placements valid to all intersections)
         for k in range(n+1):
 
             # for choices of length k
-            combs = itertools.combinations(ship_nums, k)
+            combs = itertools.combinations(range(n), k)
 
             # for one choice multiply intersection sizes and placements sizes
             for comb in combs:
 
-                prod = math.prod([lu[i] if i in comb else N_sn[i]
-                                 for i in ship_nums])
+                prod = math.prod([N_overlap[ship_size, index, ship_sizes[i]]
+                                  if i in comb else N_ship_size[ship_sizes[i]] for i in range(n)])
+
+                if k == 0 and prod == 0:
+                    return 0
 
                 num += sign * prod
 
@@ -179,34 +168,89 @@ class Board:
 
         return num
 
+    def get_hit_groups(self):
+
+        # get hit cells
+        rows, cols = np.where(self.board == Board.HIT)
+        hit_cells = set(zip(rows, cols))
+
+        # form hit groups
+        def bfs(start_cell, cell_set):
+
+            directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+            queue = deque([start_cell])
+            group = []
+
+            while queue:
+                current = queue.popleft()
+                if current not in visited:
+                    visited.add(current)
+                    group.append(current)
+                    # Check all orthogonal directions
+                    for d in directions:
+                        neighbor = (current[0] + d[0], current[1] + d[1])
+                        if neighbor in cell_set and neighbor not in visited:
+                            queue.append(neighbor)
+
+            return group
+
+        hit_groups = []
+
+        visited = set()
+        for cell in hit_cells:
+            if cell not in visited:
+                group = bfs(cell, hit_cells)
+                hit_groups.append(group)
+
+        return hit_groups
+
     def calculate_probability_density(self):
 
         n_rows, n_cols = self.board_sizes
 
         probability_map = np.zeros((n_rows, n_cols))
 
-        # get all possible placements of all ship_sizes
-        # get N_sn number of placements for a ship number
-        placements, N_sn = self.get_placements()
+        hit_groups = self.get_hit_groups()
 
-        # get (index : indices of overlap) dictionary
-        overlap_lookup = self.get_overlap_lookup(placements, N_sn)
-        # for every index add P(index)*placements(index) to probability map
+        n_left_cells = len(
+            np.where(self.board == Board.UNKNOWN)[0]) + sum(len(hg) for hg in hit_groups)
 
-        running_total = 0
-        for j, p_ss in enumerate(placements):
+        # I-E-P for hit groups
 
-            for i, p in enumerate(p_ss):
+        n = len(hit_groups)
 
-                index = i + running_total
+        for k in range(n+1):
 
-                N = self.N_p(index, N_sn, overlap_lookup[index])
+            sign = (-1)**k
 
-                for coord in p:
+            combs = itertools.combinations(hit_groups, k)
 
-                    probability_map[coord] += N
+            for comb in combs:
 
-            running_total += N_sn[j]
+                if n_left_cells - sum(len(hg) for hg in comb) < sum(self.ship_sizes):
+                    continue
+
+                # get all placements of all ship_sizes
+                placements = self.get_placements(comb)
+
+                # get overlap and total amount of placements dictionarys
+                N_overlap, N_ship_size = self.get_N_overlap(placements)
+
+                # for every placement add N_p to probability map
+                for ship_size in set(self.ship_sizes):
+
+                    ship_size_count = self.ship_sizes.count(ship_size)
+
+                    p_ss = placements[ship_size]
+
+                    for index, p in enumerate(p_ss):
+
+                        N = sign*self.N_p(N_overlap, N_ship_size,
+                                          ship_size, index)*ship_size_count
+
+                        for coord in p:
+                            probability_map[coord] += N
 
         # rescale probability map to left percentage
         probability_map *= sum(self.ship_sizes) / \
@@ -384,7 +428,6 @@ class Board:
 
             if verbose > 1:
                 print(board)  # print(np.round(board.probability_map,0))
-                print(board.ship_sizes)
 
             if len(board.ship_sizes) == 0:
                 print("Took", k, "Rounds")
@@ -402,8 +445,8 @@ class Board:
             ship_size = board.update_board_value(shot, value)
 
             if verbose > 0:
-                print("best shot", shot)
-                print(ship_size)
+                print("best shot:", shot)
+                print("Remaining ships:", board.ship_sizes)
 
             if ship_size in board.ship_sizes:
                 board.ship_sizes.remove(ship_size)
@@ -428,12 +471,6 @@ BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
 SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
 
 board = Board(BOARD_SIZES, SHIP_SIZES)
-
-# lu = board.get_overlap_lookup(*board.get_placements())
-
-# for key in lu:
-#     s = lu[key]
-#     print(key, s)
 
 test_board1 = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9)],
                [(0, 0), (1, 0), (2, 0), (3, 0)],
@@ -492,7 +529,7 @@ test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
 
 
 board.test_game(test_board1, verbose=2)
-board.test_game(test_board2, verbose=0)
-board.test_game(test_board3, verbose=0)
-board.test_game(test_board4, verbose=0)
-board.test_game(test_board5, verbose=0)
+# board.test_game(test_board2, verbose=2)
+# board.test_game(test_board3, verbose=2)
+# board.test_game(test_board4, verbose=2)
+# board.test_game(test_board5, verbose=2)
