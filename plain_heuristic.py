@@ -5,6 +5,7 @@ import random
 import math
 import re
 import itertools
+import copy
 import time
 
 # Development
@@ -117,21 +118,13 @@ class Board:
                 for ship_size_2 in set(self.ship_sizes):
                     placements_ss_2 = placements[ship_size_2]
 
-                    overlap_indices = set()
-
-                    index_2 = 0
+                    N_overlap[ship_size_1, index, ship_size_2] = 0
 
                     for p_2 in placements_ss_2:
 
-                        index_2 += 1
+                        if any(cell in check_cells for cell in p_2):
 
-                        for cell in p_2:
-                            if cell in check_cells:
-                                overlap_indices.add(index_2)
-
-                    N = len(overlap_indices)
-
-                    N_overlap[ship_size_1, index, ship_size_2] = N
+                            N_overlap[ship_size_1, index, ship_size_2] += 1
 
                 index += 1
 
@@ -159,10 +152,10 @@ class Board:
                 prod = math.prod([N_overlap[ship_size, index, ship_sizes[i]]
                                   if i in comb else N_ship_size[ship_sizes[i]] for i in range(n)])
 
-                if k == 0 and prod == 0:
-                    return 0
-
                 num += sign * prod
+
+                # if num == 0:
+                #     return 0
 
             sign *= -1
 
@@ -213,9 +206,6 @@ class Board:
 
         hit_groups = self.get_hit_groups()
 
-        n_left_cells = len(
-            np.where(self.board == Board.UNKNOWN)[0]) + sum(len(hg) for hg in hit_groups)
-
         # I-E-P for hit groups
 
         n = len(hit_groups)
@@ -227,9 +217,6 @@ class Board:
             combs = itertools.combinations(hit_groups, k)
 
             for comb in combs:
-
-                if n_left_cells - sum(len(hg) for hg in comb) < sum(self.ship_sizes):
-                    continue
 
                 # get all placements of all ship_sizes
                 placements = self.get_placements(comb)
@@ -270,9 +257,26 @@ class Board:
                 cell_value = self.board[row, col]
                 if self.probability_map[row][col] > m and cell_value == Board.UNKNOWN:
                     m = self.probability_map[row][col]
-                    best_shots = [(row, col)]
+                    best_shots = []
                 if self.probability_map[row][col] == m and cell_value == Board.UNKNOWN:
                     best_shots.append((row, col))
+
+        m = 0
+        diags = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+        for shot in best_shots:
+            n = 0
+            for dir in diags:
+                coord = (shot[0] + dir[0], shot[0] + dir[1])
+
+                r, c = coord
+                if 0 <= r < n_rows and 0 <= c < n_cols:
+                    if self.board[coord] == Board.UNKNOWN:
+                        n += 1
+            if n < m:
+                best_shots.remove(shot)
+
+            if n > m:
+                m = n
 
         return random.choice(best_shots)
 
@@ -413,6 +417,8 @@ class Board:
 
         board = Board(self.board_sizes, self.ship_sizes.copy())
 
+        _test_board = copy.deepcopy(test_board)
+
         k = 0
 
         while True:
@@ -431,7 +437,7 @@ class Board:
 
             if len(board.ship_sizes) == 0:
                 print("Took", k, "Rounds")
-                break
+                return k
 
             shot = board.best_possible_shot()
 
@@ -440,13 +446,14 @@ class Board:
                 print("Already known")
                 break
 
-            value = get_shot_value(test_board, shot)
+            value = get_shot_value(_test_board, shot)
 
             ship_size = board.update_board_value(shot, value)
 
             if verbose > 0:
-                print("best shot:", shot)
+                print("Best shot:", shot)
                 print("Remaining ships:", board.ship_sizes)
+                print("Hit groups:", len(board.get_hit_groups()))
 
             if ship_size in board.ship_sizes:
                 board.ship_sizes.remove(ship_size)
@@ -528,8 +535,24 @@ test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
                [(7, 7), (7, 8)]]
 
 
-board.test_game(test_board1, verbose=2)
-# board.test_game(test_board2, verbose=2)
-# board.test_game(test_board3, verbose=2)
-# board.test_game(test_board4, verbose=2)
-# board.test_game(test_board5, verbose=2)
+board.test_game(test_board5, verbose=2)
+
+
+def get_average_round_num(test_board, N):
+    average = 0
+    for _ in range(N):
+        average += board.test_game(test_board, verbose=0)
+
+    return average/N
+
+
+# test_boards = [test_board1, test_board2,
+#                test_board3, test_board4, test_board5]
+
+# # test_boards = [test_board1]
+
+# for test_board in test_boards:
+
+#     N = 10
+#     average = get_average_round_num(test_board, N)
+#     print(f"Took average of {average} rounds")
