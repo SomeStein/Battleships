@@ -448,6 +448,28 @@ def get_shot_value(test_board, shot):
     return value
 
 
+def print_placement(placement, board_sizes):
+
+    n_rows, n_cols = board_sizes
+
+    string = "▒▒"*(n_cols+2)
+    string += "\n"
+
+    for row in range(n_rows):
+        string += "▒▒"
+        for col in range(n_cols):
+            if (row, col) in placement:
+                string += "██"
+            else:
+                string += "  "
+        string += "▒▒"
+        string += "\n"
+
+    string += "▒▒"*(n_cols+2)
+
+    print(string)
+
+
 # Constants
 BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
 SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
