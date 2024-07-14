@@ -7,6 +7,7 @@ import re
 from itertools import combinations, product
 import copy
 import time
+import matplotlib.pyplot as plt
 
 # Development
 # optimizing ship size duplicates for lookup generation
@@ -46,86 +47,120 @@ class Board:
         padding_coords = [(r, c) for r in range(r_s, r_e) for c in range(
             c_s, c_e) if (r, c) not in ship_coords and 0 <= r < n_rows and 0 <= c < n_cols]
 
-        return padding_coords
+        return set(padding_coords)
 
-    def get_placements_ss(self, ship_size, without_p=set(), without_padding=set()):
+    def valid_placement(self, ship_coords, without=set()):
 
-        placements = []
+        if any(coord in without or self.board[coord] in (Board.MISS, Board.SUNK) for coord in ship_coords):
+            return False
+
+        padding = self.get_padding(ship_coords)
+
+        if any(self.board[coord] in (Board.HIT, Board.SUNK) for coord in padding):
+            return False
+
+        return True
+
+    def get_placements(self, without=set()):
 
         n_rows, n_cols = self.board_sizes
 
-        for row, col in zip(*np.where((self.board == Board.UNKNOWN) | (self.board == Board.HIT))):
-
-            if col <= n_cols - ship_size:
-                ship_coords = [(row, c)
-                               for c in range(col, col + ship_size)]
-
-                if all((self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT) and (r, c) not in without_p for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
-
-                    padding = self.get_padding(ship_coords)
-
-                    if all((self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS) and (r, c) not in without_padding for r, c in padding):
-
-                        placements.append(set(ship_coords))
-
-            if row <= n_rows - ship_size:
-                ship_coords = [(r, col)
-                               for r in range(row, row + ship_size)]
-
-                if all((self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.HIT) and (r, c) not in without_p for r, c in ship_coords) and any(self.board[r, c] == Board.UNKNOWN for r, c in ship_coords):
-
-                    padding = self.get_padding(ship_coords)
-
-                    if all((self.board[r, c] == Board.UNKNOWN or self.board[r, c] == Board.MISS) and (r, c) not in without_padding for r, c in padding):
-
-                        placements.append(set(ship_coords))
-
-        return placements
-
-    def get_placements(self, ship_sizes, without_p=set(), without_padding=set()):
-
         placements = {}
-        for ship_size in ship_sizes:
-            placements[ship_size] = self.get_placements_ss(
-                ship_size, without_p, without_padding)
+
+        coords = zip(*np.where((self.board == Board.UNKNOWN)
+                               | (self.board == Board.HIT)))
+
+        coords = [(int(r), int(c)) for r, c in coords]
+
+        for ss in set(self.ship_sizes):
+
+            placements[ss] = []
+
+            for s_row, s_col in coords:
+
+                if s_col + ss <= n_cols:
+
+                    ship_coords = set([(s_row, c)
+                                       for c in range(s_col, s_col + ss)])
+                    if self.valid_placement(ship_coords, without):
+                        placements[ss].append(ship_coords)
+
+                if s_row + ss <= n_rows:
+
+                    ship_coords = set([(r, s_col)
+                                       for r in range(s_row, s_row + ss)])
+                    if self.valid_placement(ship_coords, without):
+                        placements[ss].append(ship_coords)
 
         return placements
 
-    def N_p(self, placement):
+    def get_remaining_placements(self, placements, p):
 
-        ship_sizes = self.ship_sizes.copy()
-        ship_sizes.remove(len(placement))
+        p_placements = {}
 
-        placements = self.get_placements(
-            set(ship_sizes), without_p=placement, without_padding=placement)
+        padded_p = p.union(self.get_padding(p))
 
-        if len(ship_sizes) > 4:
+        r_ship_sizes = self.ship_sizes.copy()
+        r_ship_sizes.remove(len(p))
 
-            num = math.prod(len(placements[ss]) for ss in ship_sizes)
+        for r_ss in r_ship_sizes:  # remaining ship sizes
+            p_placements[r_ss] = []
 
-        else:
+            for r_p in placements[r_ss]:
+                if r_p.isdisjoint(padded_p):
+                    p_placements[r_ss].append(r_p)
 
-            num = 0
+        return p_placements, r_ship_sizes
 
-            def recursion(config, ship_cells):
+    def N_p(self, p_placements, r_ship_sizes):
 
-                n = len(config)
+        # initial value for num of boards with placement p
 
-                if n == len(ship_sizes):
-                    nonlocal num
-                    num += 1
-                    return
+        num = math.prod(len(p_placements[ss]) for ss in r_ship_sizes)
 
-                ship_size = ship_sizes[n]
+        # generate overlaps dict
 
-                for p in placements[ship_size]:
-                    check_cells = p.union(self.get_padding(p))
+        # r_ship_sizes.sort()
 
-            # recursive part
-            # place the first one
-            # place the second only if no intersection with first one
+        # overlaps = {}
 
-            pass
+        # combs = combinations(r_ship_sizes, 2)
+        # for comb in combs:
+
+        #     if comb not in overlaps:
+        #         ss_1, ss_2 = comb
+
+        #         overlaps[ss_1, ss_2] = set()
+
+        #         for i_1 in range(len(p_placements[ss_1])):
+        #             for i_2 in range(len(p_placements[ss_2])):
+        #                 p_1 = p_placements[ss_1][i_1]
+        #                 p_2 = p_placements[ss_2][i_2]
+        #                 if not p_1.isdisjoint(p_2):
+        #                     overlaps[ss_1, ss_2].add((i_1, i_2))
+
+        # use overlaps dict to calculate overlap numbers
+
+        # print(len(overlaps))
+
+        # for key in overlaps:
+        #     for tup in overlaps[key]:
+        #         for key2 in overlaps:
+        #             len(overlaps[key2]) ** 2
+
+        # done_combs = []  # keep track of what was already subtracted
+
+        # combs = combinations(range(len(r_ship_sizes)), 2)
+        # for comb in combs:
+
+        #     ss_1, ss_2 = r_ship_sizes[comb[0]], r_ship_sizes[comb[1]]
+        #     overlap_count = math.prod(len(p_placements[r_ship_sizes[i]]) for i in range(
+        #         len(r_ship_sizes)) if i not in comb)*len(overlaps[ss_1, ss_2])
+
+        #     for comb in done_combs:
+        #         pass
+
+        #     num -= overlap_count
 
         return num
 
@@ -182,26 +217,29 @@ class Board:
 
             for comb in combs:
 
-                hit_cells = []
-                for hit_group in comb:
-                    hit_cells += hit_group
-                hit_cells = set(hit_cells)
+                hit_cells = {cell for hit_group in comb for cell in hit_group}
 
-                # get all placements of all ship_sizes
-                placements = self.get_placements(
-                    set(self.ship_sizes), without_p=hit_cells, without_padding=hit_cells)
+                # get all placements of all ship_sizes without ones that overlap with certain hit_cells
+                placements = self.get_placements(without=hit_cells)
 
                 # for every placement add N_p to probability map
-                for ship_size, p_ss in placements.items():
+                for ss, p_ss in placements.items():
 
-                    ship_size_count = self.ship_sizes.count(ship_size)
+                    # print(ss, end="\r")
+
+                    ss_c = self.ship_sizes.count(ss)
 
                     for p in p_ss:
 
-                        N_p = sign*self.N_p(p)*ship_size_count
+                        # print_placement(p, self.board_sizes)
+
+                        N_p = sign * self.N_p(
+                            *self.get_remaining_placements(placements, p)) * ss_c
 
                         for coord in p:
                             probability_map[coord] += N_p
+
+                # print("\033[2K", end="\r")
 
         # rescale probability map to left percentage
         probability_map *= sum(self.ship_sizes) / \
@@ -222,31 +260,29 @@ class Board:
                 if self.probability_map[row][col] > m and cell_value == Board.UNKNOWN:
                     m = self.probability_map[row][col]
                     best_shots = []
-                if self.probability_map[row][col] == m and cell_value == Board.UNKNOWN:
+                if abs(self.probability_map[row][col] - m) < 0.1**6 and cell_value == Board.UNKNOWN:
                     best_shots.append((row, col))
 
         m = 0
         diags = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+        # diags = [(r, c) for r in range(-1, 2) for c in range(-1, 2)]
+        n_list = []
         for shot in best_shots:
             n = 0
             for dir in diags:
-                coord = (shot[0] + dir[0], shot[0] + dir[1])
 
-                r, c = coord
+                r, c = (shot[0] + dir[0], shot[0] + dir[1])
                 if 0 <= r < n_rows and 0 <= c < n_cols:
-                    if self.board[coord] == Board.UNKNOWN:
+                    if self.board[r, c] == Board.UNKNOWN:
                         n += 1
-            if n < m:
-                best_shots.remove(shot)
+            n_list.append(n)
 
-            if n > m:
-                m = n
+        best_shots = [best_shots[i] for i in range(
+            len(best_shots)) if n_list[i] == max(n_list)]
 
         return random.choice(best_shots)
 
     def update_board_value(self, cell, value):
-
-        ship_size_counter = 0
 
         n_rows, n_cols = self.board_sizes
 
@@ -263,24 +299,21 @@ class Board:
                 if 0 <= r < n_rows and 0 <= c < n_cols:
                     self.board[r, c] = Board.MISS
 
-            ship_size_counter = 1
-
         elif value == Board.SUNK:
 
-            self.board[row, col] = Board.SUNK
+            self.update_board_value(cell, Board.HIT)
 
-            ship_size_counter = 1
+            hit_groups = self.get_hit_groups()
 
-            for a, b in [(a_-1, b_-1) for a_ in range(3) for b_ in range(3)]:
-                r, c = row+a, col+b
-                if 0 <= r < n_rows and 0 <= c < n_cols:
-                    if self.board[r, c] == Board.UNKNOWN:
-                        self.board[r, c] = Board.MISS
-                    elif self.board[r, c] == Board.HIT:
-                        ship_size_counter += self.update_board_value(
-                            (r, c), Board.SUNK)
+            for hit_group in hit_groups:
+                if cell in hit_group:
+                    for hit_cell in hit_group:
+                        self.board[hit_cell] = Board.SUNK
 
-        return ship_size_counter
+                    for pad_cell in self.get_padding(hit_group):
+                        self.board[pad_cell] = Board.MISS
+
+                    self.ship_sizes.remove(len(hit_group))
 
     def __str__(self):
 
@@ -379,6 +412,8 @@ class Board:
 
     def test_game(self, test_board, verbose=2):
 
+        start_time = time.time()
+
         board = Board(self.board_sizes, self.ship_sizes.copy())
 
         _test_board = copy.deepcopy(test_board)
@@ -400,9 +435,14 @@ class Board:
 
             if verbose > 1:
                 print(board)  # print(np.round(board.probability_map,0))
+                data = board.probability_map
+                plt.imshow(data, cmap='viridis', interpolation='nearest')
+                # plt.show()
 
             if len(board.ship_sizes) == 0:
-                print("Took", k, "Rounds")
+                if verbose > 0:
+                    print(f"took {k} rounds and {
+                        time.time() - start_time} seconds")
                 return k
 
             shot = board.best_possible_shot()
@@ -414,7 +454,7 @@ class Board:
 
             value = get_shot_value(_test_board, shot)
 
-            ship_size = board.update_board_value(shot, value)
+            board.update_board_value(shot, value)
 
             if verbose > 0:
                 print("Best shot:", shot)
@@ -426,9 +466,6 @@ class Board:
                     print("Sunk!")
                 print("Remaining ships:", board.ship_sizes)
                 print("Hit groups:", len(board.get_hit_groups()))
-
-            if ship_size in board.ship_sizes:
-                board.ship_sizes.remove(ship_size)
 
             if verbose > 0:
                 print(f"round took {time.time() - start} seconds")
@@ -532,10 +569,28 @@ test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
                [(7, 7), (7, 8)]]
 
 
-def get_average_round_num(test_board, N):
+def get_average_round_num(board, test_board, N):
+
     average = 0
-    for _ in range(N):
-        average += board.test_game(test_board, verbose=0)
+    mx = 0
+    mn = math.prod(board.board_sizes)
+
+    print("\n")
+    for i in range(N):
+
+        took = board.test_game(test_board, verbose=0)
+        average += took
+
+        if took > mx:
+            mx = took
+        if took < mn:
+            mn = took
+
+        print("\033[2K", end="\r")
+        print("\x1b[A", end="\r")
+        print("\033[2K", end="\r")
+
+        print(f"{i+1} average: {round(average/(i+1), 4)}, max: {mx}, min: {mn}")
 
     return average/N
 
@@ -544,8 +599,22 @@ test_boards = [test_board1, test_board2, test_board3, test_board4, test_board5]
 
 # for test_board in test_boards:
 
-#     N = 5
+#     N = 20
 #     average = get_average_round_num(test_board, N)
 #     print(f"Took average of {average} rounds")
 
-board.test_game(test_board1)
+# print_placement({cell for ship in test_board2 for cell in ship}, (10, 10))
+
+# # Constants
+# BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
+# SHIP_SIZES = [5, 4, 3, 3, 2]  # Standard Battleship ship sizes
+
+# board = Board(BOARD_SIZES, SHIP_SIZES)
+
+# test_board = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9)],
+#               [(0, 0), (1, 0), (2, 0), (3, 0)],
+#               [(1, 6), (1, 7), (1, 8)],
+#               [(3, 7), (4, 7), (5, 7)],
+#               [(0, 3), (0, 4)]]
+
+get_average_round_num(board, test_board3, 200)
