@@ -507,11 +507,31 @@ def print_placement(placement, board_sizes):
     print(string)
 
 
-# Constants
-BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
-SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
+def get_average_round_num(board, test_board, N):
 
-board = Board(BOARD_SIZES, SHIP_SIZES)
+    average = 0
+    mx = 0
+    mn = math.prod(board.board_sizes)
+
+    print("\n")
+    for i in range(N):
+
+        took = board.test_game(test_board, verbose=0)
+        average += took
+
+        if took > mx:
+            mx = took
+        if took < mn:
+            mn = took
+
+        print("\033[2K", end="\r")
+        print("\x1b[A", end="\r")
+        print("\033[2K", end="\r")
+
+        print(f"{i+1} average: {round(average/(i+1), 4)}, max: {mx}, min: {mn}")
+
+    return average/N
+
 
 test_board1 = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9)],
                [(0, 0), (1, 0), (2, 0), (3, 0)],
@@ -569,52 +589,14 @@ test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
                [(7, 7), (7, 8)]]
 
 
-def get_average_round_num(board, test_board, N):
-
-    average = 0
-    mx = 0
-    mn = math.prod(board.board_sizes)
-
-    print("\n")
-    for i in range(N):
-
-        took = board.test_game(test_board, verbose=0)
-        average += took
-
-        if took > mx:
-            mx = took
-        if took < mn:
-            mn = took
-
-        print("\033[2K", end="\r")
-        print("\x1b[A", end="\r")
-        print("\033[2K", end="\r")
-
-        print(f"{i+1} average: {round(average/(i+1), 4)}, max: {mx}, min: {mn}")
-
-    return average/N
-
-
 test_boards = [test_board1, test_board2, test_board3, test_board4, test_board5]
 
-# for test_board in test_boards:
+# Constants
+BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
+SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
 
-#     N = 20
-#     average = get_average_round_num(test_board, N)
-#     print(f"Took average of {average} rounds")
+board = Board(BOARD_SIZES, SHIP_SIZES)
 
-# print_placement({cell for ship in test_board2 for cell in ship}, (10, 10))
+for test_board in test_boards:
 
-# # Constants
-# BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
-# SHIP_SIZES = [5, 4, 3, 3, 2]  # Standard Battleship ship sizes
-
-# board = Board(BOARD_SIZES, SHIP_SIZES)
-
-# test_board = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9)],
-#               [(0, 0), (1, 0), (2, 0), (3, 0)],
-#               [(1, 6), (1, 7), (1, 8)],
-#               [(3, 7), (4, 7), (5, 7)],
-#               [(0, 3), (0, 4)]]
-
-get_average_round_num(board, test_board3, 200)
+    get_average_round_num(board, test_board, 100)
