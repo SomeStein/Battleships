@@ -94,9 +94,9 @@ class Board:
 
         return placements
 
-    def get_remaining_placements(self, placements, p: set):
+    def N_p(self, placements, p: set):
 
-        p_placements = {}
+        num = 1
 
         padded_p = p.union(self.get_padding(p))
 
@@ -104,13 +104,16 @@ class Board:
         r_ship_sizes.remove(len(p))
 
         for r_ss in set(r_ship_sizes):  # remaining ship sizes
-            p_placements[r_ss] = []
+
+            factor = 0
 
             for r_p in placements[r_ss]:
                 if r_p.isdisjoint(padded_p):
-                    p_placements[r_ss].append(r_p)
+                    factor += 1
 
-        return p_placements, r_ship_sizes
+            num *= factor * r_ship_sizes.count(r_ss)
+
+        return num
 
     def filter_placements(self, placements, filter):
 
@@ -124,10 +127,6 @@ class Board:
                     filtered_placements[ss].append(p)
 
         return filtered_placements
-
-    def N_p(self, p_placements, r_ship_sizes):
-
-        return math.prod(len(p_placements[ss]) for ss in r_ship_sizes)
 
     def get_hit_groups(self):
 
@@ -197,11 +196,7 @@ class Board:
 
                     for p in p_ss:
 
-                        # print(p, end="\r")
-
-                        N_p = sign * \
-                            self.N_p(
-                                *self.get_remaining_placements(filtered_placements, p)) * ss_c
+                        N_p = sign * self.N_p(filtered_placements, p) * ss_c
 
                         for coord in p:
                             probability_map[coord] += N_p
