@@ -1,5 +1,5 @@
-from game import Board, get_average_round_num
-
+import random
+from game import Board, get_average_round_num, print_placement
 
 test_board1 = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9)],
                [(0, 0), (1, 0), (2, 0), (3, 0)],
@@ -59,12 +59,109 @@ test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
 
 test_boards = [test_board1, test_board2, test_board3, test_board4, test_board5]
 
+
+def generate_board(board_sizes, ship_sizes):
+
+    width, height = board_sizes
+
+    while True:
+
+        skip = False
+
+        # pick starting point and direction for every ship
+        dirs = [(0, 1), (1, 0)]
+        pickable_points = [(r, c) for r in range(height) for c in range(width)]
+
+        test_board = []
+        for ss in ship_sizes:
+
+            # pick direction
+            dir = random.choice(dirs)
+
+            # pick starting point
+            if dir == (0, 1):
+                _pickable_points = [(r, c)
+                                    for r, c in pickable_points if c < width - ss]
+            else:
+                _pickable_points = [(r, c)
+                                    for r, c in pickable_points if r < height - ss]
+
+            if len(_pickable_points) == 0:
+                skip = True
+                break
+
+            r, c = random.choice(_pickable_points)
+
+            # create ship coords
+            ship_coords = set([(r+x, c+y) for x in range(1 + dir[0]*(ss-1))
+                               for y in range(1 + dir[1]*(ss-1))])
+
+            # check for overlaps
+            padded_ship_coords = set(
+                [(r+x, c+y) for x in [-1, 0, 1] for y in [-1, 0, 1] for r, c in ship_coords])
+
+            if any(not padded_ship_coords.isdisjoint(other) for other in test_board):
+                skip = True
+
+            if skip:
+                break
+
+            for coord in padded_ship_coords:
+                if coord in pickable_points:
+                    pickable_points.remove(coord)
+
+            test_board.append(ship_coords)
+
+        if skip:
+            continue
+
+        return test_board
+
+
 # Constants
 BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
-SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
+# Standard Battleship ship sizes
+SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
 
-board = Board(BOARD_SIZES, SHIP_SIZES)
+# board = Board(BOARD_SIZES, SHIP_SIZES)
 
-for test_board in test_boards:
+# test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
 
-    get_average_round_num(board, test_board, 100)
+# print_placement([coord for ship in test_board for coord in ship], (10, 10))
+
+
+print("\n")
+average = mx = mn = k = 0
+for k in range(1, 1000):
+
+    # Constants
+    BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
+    # Standard Battleship ship sizes
+    SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
+
+    board = Board(BOARD_SIZES, SHIP_SIZES)
+
+    test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
+
+    # print_placement(
+    #     [coord for ship in test_board for coord in ship], BOARD_SIZES)
+
+    rounds = board.test_game(test_board, 0)
+
+    if mn == 0:
+        mn = rounds
+
+    if rounds < mn:
+        mn = rounds
+
+    if rounds > mx:
+        mx = rounds
+
+    average += rounds
+
+    print("\033[2K", end="\r")
+    print("\x1b[A", end="\r")
+    print("\033[2K", end="\r")
+
+    print(f"total games played: {k}, average: {
+          round(average/k, 4)}, max: {mx}, min: {mn}")

@@ -111,7 +111,7 @@ class Board:
                 if r_p.isdisjoint(padded_p):
                     factor += 1
 
-            num *= factor * r_ship_sizes.count(r_ss)
+            num *= factor ** r_ship_sizes.count(r_ss)
 
         return num
 
@@ -270,8 +270,8 @@ class Board:
                     for hit_cell in hit_group:
                         self.board[hit_cell] = Board.SUNK
 
-                    for pad_cell in self.get_padding(hit_group):
-                        self.board[pad_cell] = Board.MISS
+                    for coord in self.get_padding(hit_group):
+                        self.board[coord] = Board.MISS
 
                     self.ship_sizes.remove(len(hit_group))
 
@@ -313,7 +313,7 @@ class Board:
                 row, col = map(int, match.groups())
 
                 # Check if row and col are within the specified range
-                if 0 <= row < max_value and 0 <= col < max_value:
+                if 0 < row <= max_value and 0 < col <= max_value:
                     return (row, col)
                 else:
                     print("Warning: Values are out of range.")
@@ -335,7 +335,7 @@ class Board:
             print("\nRound num:", k)
             print(self)
             print(self.ship_sizes)
-            print("best shot", best_shot)
+            best_shot = best_shot[0] + 1, best_shot[1] + 1
             shot = input("\nBest possible shot is: " +
                          str(best_shot) + "\nEnter shot: ")
 
@@ -343,13 +343,16 @@ class Board:
 
             if not shot:
                 continue
+
+            shot = shot[0] - 1, shot[1] - 1
+
             value = self.board[shot[0], shot[1]]
             if value != Board.UNKNOWN:
                 print("Already known")
                 continue
 
             while True:
-                value = input("Miss, Hit or SUNK?\n")
+                value = input("Hit, Miss or Sunk?\n")
 
                 if value in ["Miss", "miss", "m", "M"]:
                     value = Board.MISS
@@ -361,11 +364,7 @@ class Board:
                     continue
                 break
 
-            ship_size = self.update_board_value(shot, value)
-
-            if ship_size >= 1 and value == Board.SUNK:
-                self.ship_sizes.remove(ship_size)
-                print(ship_size)
+            self.update_board_value(shot, value)
 
             if len(self.ship_sizes) == 0:
                 break
