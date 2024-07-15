@@ -94,39 +94,36 @@ class Board:
 
         return placements
 
-    def N_p(self, placements, p: set):
+    def get_indices(self, placements_list, filter):
+
+        indices = {}
+
+        for ss in set(self.ship_sizes):
+            indices[ss] = set()
+
+        # go through placements_list check which placements dont overlap with filter and add indices
+        for index, p in enumerate(placements_list):
+            if p.isdisjoint(filter):
+                ss = len(p)
+                indices[ss].add(index)
+
+        return indices
+
+    def N_p(self, ss, index, indices, overlaps):
 
         num = 1
 
-        padded_p = p.union(self.get_padding(p))
-
         r_ship_sizes = self.ship_sizes.copy()
-        r_ship_sizes.remove(len(p))
+        r_ship_sizes.remove(ss)
 
-        for r_ss in set(r_ship_sizes):  # remaining ship sizes
+        overlap_indices = overlaps[index]
 
-            factor = 0
+        for r_ss in set(r_ship_sizes):
 
-            for r_p in placements[r_ss]:
-                if r_p.isdisjoint(padded_p):
-                    factor += 1
-
-            num *= factor ** r_ship_sizes.count(r_ss)
+            num *= len(indices[r_ss] -
+                       overlap_indices) ** r_ship_sizes.count(r_ss)
 
         return num
-
-    def filter_placements(self, placements, filter):
-
-        filtered_placements = {}
-
-        for ss, p_ss in placements.items():
-            filtered_placements[ss] = []
-
-            for p in p_ss:
-                if p.isdisjoint(filter):
-                    filtered_placements[ss].append(p)
-
-        return filtered_placements
 
     def get_hit_groups(self):
 
@@ -171,7 +168,19 @@ class Board:
 
         hit_groups = self.get_hit_groups()
 
-        placements = self.get_placements()
+        placements_dict = self.get_placements()
+
+        placements_list = [p for p_ss in placements_dict.values()
+                           for p in p_ss]
+
+        # init overlaps
+        overlaps = {}
+        for index1, p1 in enumerate(placements_list):
+            overlaps[index1] = set()
+            padded_p1 = self.get_padding(p1).union(p1)
+            for index2, p2 in enumerate(placements_list):
+                if not padded_p1.isdisjoint(p2):
+                    overlaps[index1].add(index2)
 
         # I-E-P for hit groups
 
@@ -185,21 +194,18 @@ class Board:
 
                 hit_cells = {cell for hit_group in comb for cell in hit_group}
 
-                # get all placements without ones that overlap with certain hit_cells
-                filtered_placements = self.filter_placements(
-                    placements, hit_cells)
+                indices = self.get_indices(placements_list, hit_cells)
 
-                # for every placement add N_p to probability map
-                for ss, p_ss in filtered_placements.items():
+                for ss in set(self.ship_sizes):
 
                     ss_c = self.ship_sizes.count(ss)
 
-                    for p in p_ss:
+                    for index in indices[ss]:
 
-                        N_p = sign * self.N_p(filtered_placements, p) * ss_c
+                        N_p = self.N_p(ss, index, indices, overlaps)
 
-                        for coord in p:
-                            probability_map[coord] += N_p
+                        for coord in placements_list[index]:
+                            probability_map[coord] += sign * N_p * ss_c
 
         # rescale probability map to percentage
         probability_map *= (len(np.where(self.board == Board.SUNK)[0])+sum(self.ship_sizes)) / \
@@ -490,39 +496,3 @@ def get_average_round_num(board, test_board, N):
         print(f"{i+1} average: {round(average/(i+1), 4)}, max: {mx}, min: {mn}")
 
     return average/N
-
-
-# Function to check if two tuples are compatible
-def are_compatible(t1, t2, positions1, positions2):
-    combined_positions = list(set(positions1 + positions2))
-    combined_tuple = {pos: None for pos in combined_positions}
-
-    for pos, val in zip(positions1, t1):
-        if combined_tuple[pos] is None:
-            combined_tuple[pos] = val
-        elif combined_tuple[pos] != val:
-            return False
-
-    for pos, val in zip(positions2, t2):
-        if combined_tuple[pos] is None:
-            combined_tuple[pos] = val
-        elif combined_tuple[pos] != val:
-            return False
-
-    return True
-
-# Function to count valid combinations
-
-
-def count_valid_combinations(tuple_dict, keys_subset):
-    # Get the lists of tuples for the given subset of keys
-    lists = [tuple_dict[key] for key in keys_subset]
-    positions = [key for key in keys_subset]
-
-    count = 0
-    for combination in product(*lists):
-        if all(are_compatible(combination[i], combination[j], positions[i], positions[j])
-                for i in range(len(combination))
-                for j in range(i + 1, len(combination))):
-            count += 1
-    return count

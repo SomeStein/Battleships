@@ -129,6 +129,8 @@ SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
 
 # print_placement([coord for ship in test_board for coord in ship], (10, 10))
 
+# board.test_game(test_board)
+
 
 print("\n")
 average = mx = mn = k = 0
