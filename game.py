@@ -49,9 +49,9 @@ class Board:
 
         return set(padding_coords)
 
-    def valid_placement(self, ship_coords, without=set()):
+    def valid_placement(self, ship_coords):
 
-        if any(coord in without or self.board[coord] in (Board.MISS, Board.SUNK) for coord in ship_coords):
+        if any(self.board[coord] in (Board.MISS, Board.SUNK) for coord in ship_coords):
             return False
 
         padding = self.get_padding(ship_coords)
@@ -59,9 +59,9 @@ class Board:
         if any(self.board[coord] in (Board.HIT, Board.SUNK) for coord in padding):
             return False
 
-        return True
+        return any(self.board[coord] == Board.UNKNOWN for coord in ship_coords)
 
-    def get_placements(self, without=set()):
+    def get_placements(self):
 
         n_rows, n_cols = self.board_sizes
 
@@ -82,19 +82,19 @@ class Board:
 
                     ship_coords = set([(s_row, c)
                                        for c in range(s_col, s_col + ss)])
-                    if self.valid_placement(ship_coords, without):
+                    if self.valid_placement(ship_coords):
                         placements[ss].append(ship_coords)
 
                 if s_row + ss <= n_rows:
 
                     ship_coords = set([(r, s_col)
                                        for r in range(s_row, s_row + ss)])
-                    if self.valid_placement(ship_coords, without):
+                    if self.valid_placement(ship_coords):
                         placements[ss].append(ship_coords)
 
         return placements
 
-    def get_remaining_placements(self, placements, p):
+    def get_remaining_placements(self, placements, p: set):
 
         p_placements = {}
 
@@ -103,7 +103,7 @@ class Board:
         r_ship_sizes = self.ship_sizes.copy()
         r_ship_sizes.remove(len(p))
 
-        for r_ss in r_ship_sizes:  # remaining ship sizes
+        for r_ss in set(r_ship_sizes):  # remaining ship sizes
             p_placements[r_ss] = []
 
             for r_p in placements[r_ss]:
@@ -112,57 +112,22 @@ class Board:
 
         return p_placements, r_ship_sizes
 
+    def filter_placements(self, placements, filter):
+
+        filtered_placements = {}
+
+        for ss, p_ss in placements.items():
+            filtered_placements[ss] = []
+
+            for p in p_ss:
+                if p.isdisjoint(filter):
+                    filtered_placements[ss].append(p)
+
+        return filtered_placements
+
     def N_p(self, p_placements, r_ship_sizes):
 
-        # initial value for num of boards with placement p
-
-        num = math.prod(len(p_placements[ss]) for ss in r_ship_sizes)
-
-        # generate overlaps dict
-
-        # r_ship_sizes.sort()
-
-        # overlaps = {}
-
-        # combs = combinations(r_ship_sizes, 2)
-        # for comb in combs:
-
-        #     if comb not in overlaps:
-        #         ss_1, ss_2 = comb
-
-        #         overlaps[ss_1, ss_2] = set()
-
-        #         for i_1 in range(len(p_placements[ss_1])):
-        #             for i_2 in range(len(p_placements[ss_2])):
-        #                 p_1 = p_placements[ss_1][i_1]
-        #                 p_2 = p_placements[ss_2][i_2]
-        #                 if not p_1.isdisjoint(p_2):
-        #                     overlaps[ss_1, ss_2].add((i_1, i_2))
-
-        # use overlaps dict to calculate overlap numbers
-
-        # print(len(overlaps))
-
-        # for key in overlaps:
-        #     for tup in overlaps[key]:
-        #         for key2 in overlaps:
-        #             len(overlaps[key2]) ** 2
-
-        # done_combs = []  # keep track of what was already subtracted
-
-        # combs = combinations(range(len(r_ship_sizes)), 2)
-        # for comb in combs:
-
-        #     ss_1, ss_2 = r_ship_sizes[comb[0]], r_ship_sizes[comb[1]]
-        #     overlap_count = math.prod(len(p_placements[r_ship_sizes[i]]) for i in range(
-        #         len(r_ship_sizes)) if i not in comb)*len(overlaps[ss_1, ss_2])
-
-        #     for comb in done_combs:
-        #         pass
-
-        #     num -= overlap_count
-
-        return num
+        return math.prod(len(p_placements[ss]) for ss in r_ship_sizes)
 
     def get_hit_groups(self):
 
@@ -207,6 +172,8 @@ class Board:
 
         hit_groups = self.get_hit_groups()
 
+        placements = self.get_placements()
+
         # I-E-P for hit groups
 
         for k in range(len(hit_groups)+1):
@@ -219,30 +186,28 @@ class Board:
 
                 hit_cells = {cell for hit_group in comb for cell in hit_group}
 
-                # get all placements of all ship_sizes without ones that overlap with certain hit_cells
-                placements = self.get_placements(without=hit_cells)
+                # get all placements without ones that overlap with certain hit_cells
+                filtered_placements = self.filter_placements(
+                    placements, hit_cells)
 
                 # for every placement add N_p to probability map
-                for ss, p_ss in placements.items():
-
-                    # print(ss, end="\r")
+                for ss, p_ss in filtered_placements.items():
 
                     ss_c = self.ship_sizes.count(ss)
 
                     for p in p_ss:
 
-                        # print_placement(p, self.board_sizes)
+                        # print(p, end="\r")
 
-                        N_p = sign * self.N_p(
-                            *self.get_remaining_placements(placements, p)) * ss_c
+                        N_p = sign * \
+                            self.N_p(
+                                *self.get_remaining_placements(filtered_placements, p)) * ss_c
 
                         for coord in p:
                             probability_map[coord] += N_p
 
-                # print("\033[2K", end="\r")
-
-        # rescale probability map to left percentage
-        probability_map *= sum(self.ship_sizes) / \
+        # rescale probability map to percentage
+        probability_map *= (len(np.where(self.board == Board.SUNK)[0])+sum(self.ship_sizes)) / \
             (np.sum(probability_map) + 10**(-30))
 
         self.probability_map = probability_map
@@ -533,70 +498,37 @@ def get_average_round_num(board, test_board, N):
     return average/N
 
 
-test_board1 = [[(4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9)],
-               [(0, 0), (1, 0), (2, 0), (3, 0)],
-               [(6, 1), (7, 1), (8, 1), (9, 1)],
-               [(1, 6), (1, 7), (1, 8)],
-               [(3, 7), (4, 7), (5, 7)],
-               [(7, 7), (8, 7), (9, 7)],
-               [(0, 3), (0, 4)],
-               [(2, 2), (3, 2)],
-               [(7, 3), (7, 4)],
-               [(9, 4), (9, 5)]]
+# Function to check if two tuples are compatible
+def are_compatible(t1, t2, positions1, positions2):
+    combined_positions = list(set(positions1 + positions2))
+    combined_tuple = {pos: None for pos in combined_positions}
 
-test_board2 = [[(9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5)],
-               [(0, 6), (0, 7), (0, 8), (0, 9)],
-               [(6, 9), (7, 9), (8, 9), (9, 9)],
-               [(1, 0), (2, 0), (3, 0)],
-               [(2, 9), (3, 9), (4, 9)],
-               [(5, 0), (6, 0), (7, 0)],
-               [(0, 2), (1, 2)],
-               [(0, 4), (1, 4)],
-               [(2, 7), (3, 7)],
-               [(8, 7), (9, 7)]]
+    for pos, val in zip(positions1, t1):
+        if combined_tuple[pos] is None:
+            combined_tuple[pos] = val
+        elif combined_tuple[pos] != val:
+            return False
 
-test_board3 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
-               [(0, 8), (1, 8), (2, 8), (3, 8)],
-               [(9, 3), (9, 4), (9, 5), (9, 6)],
-               [(1, 4), (1, 5), (1, 6)],
-               [(3, 4), (4, 4), (5, 4)],
-               [(6, 9), (7, 9), (8, 9)],
-               [(0, 0), (0, 1)],
-               [(3, 6), (4, 6)],
-               [(5, 0), (6, 0)],
-               [(6, 6), (6, 7)]]
+    for pos, val in zip(positions2, t2):
+        if combined_tuple[pos] is None:
+            combined_tuple[pos] = val
+        elif combined_tuple[pos] != val:
+            return False
 
-test_board4 = [[(4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7)],
-               [(0, 4), (0, 5), (0, 6), (0, 7)],
-               [(2, 4), (2, 5), (2, 6), (2, 7)],
-               [(0, 2), (1, 2), (2, 2)],
-               [(6, 2), (6, 3), (6, 4)],
-               [(6, 6), (6, 7), (6, 8)],
-               [(5, 0), (6, 0)],
-               [(8, 0), (8, 1)],
-               [(8, 3), (8, 4)],
-               [(8, 6), (8, 7)]]
+    return True
 
-test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
-               [(2, 5), (2, 6), (2, 7), (2, 8)],
-               [(5, 6), (5, 7), (5, 8), (5, 9)],
-               [(4, 4), (5, 4), (6, 4)],
-               [(9, 1), (9, 2), (9, 3)],
-               [(9, 6), (9, 7), (9, 8)],
-               [(0, 0), (0, 1)],
-               [(0, 7), (0, 8)],
-               [(3, 0), (4, 0)],
-               [(7, 7), (7, 8)]]
+# Function to count valid combinations
 
 
-test_boards = [test_board1, test_board2, test_board3, test_board4, test_board5]
+def count_valid_combinations(tuple_dict, keys_subset):
+    # Get the lists of tuples for the given subset of keys
+    lists = [tuple_dict[key] for key in keys_subset]
+    positions = [key for key in keys_subset]
 
-# Constants
-BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
-SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]  # Standard Battleship ship sizes
-
-board = Board(BOARD_SIZES, SHIP_SIZES)
-
-for test_board in test_boards:
-
-    get_average_round_num(board, test_board, 100)
+    count = 0
+    for combination in product(*lists):
+        if all(are_compatible(combination[i], combination[j], positions[i], positions[j])
+                for i in range(len(combination))
+                for j in range(i + 1, len(combination))):
+            count += 1
+    return count
