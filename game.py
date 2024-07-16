@@ -190,7 +190,7 @@ class Board:
 
         if len(self.ship_sizes) > 0:
 
-            value = m = 65
+            value = m = 1000
             n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
             k_max = n_pairs + 1
 
@@ -239,7 +239,7 @@ class Board:
                             probability_map[coord] += sign * N_p * ss_c
 
         # rescale probability map to percentage
-        probability_map *= (len(np.where(self.board == Board.SUNK)[0])+sum(self.ship_sizes)) / \
+        probability_map *= sum(self.ship_sizes) / \
             (np.sum(probability_map) + 10**(-30))
 
         self.probability_map = probability_map
