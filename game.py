@@ -120,8 +120,7 @@ class Board:
 
         for r_ss in set(r_ship_sizes):
 
-            num *= len(indices[r_ss] -
-                       overlap_indices) ** r_ship_sizes.count(r_ss)
+            num *= len(indices[r_ss]) ** r_ship_sizes.count(r_ss)
 
         return num
 
