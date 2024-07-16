@@ -169,7 +169,11 @@ class Board:
         for k in range(1, k_max + 1):
             sign *= -1
             for comb in combinations(pairs, k):
-                num += sign  # * N_O * N_R
+
+                flat_comb = [i for pair in comb for i in pair]
+
+                num += sign * math.prod(len(_indices[r_ship_sizes[i]])
+                                        for i in range(len(r_ship_sizes)) if i not in flat_comb)
 
         return num
 
@@ -186,7 +190,7 @@ class Board:
 
         if len(self.ship_sizes) > 0:
 
-            value = m = 1
+            value = m = 65
             n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
             k_max = n_pairs + 1
 
