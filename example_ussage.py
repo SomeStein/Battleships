@@ -134,7 +134,7 @@ SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
 
 print("\n")
 average = mx = mn = k = 0
-for k in range(1, 1000):
+for k in range(1, 100):
 
     # Constants
     BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10

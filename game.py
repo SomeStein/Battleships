@@ -94,36 +94,6 @@ class Board:
 
         return placements
 
-    def get_indices(self, placements_list, filter):
-
-        indices = {}
-
-        for ss in set(self.ship_sizes):
-            indices[ss] = set()
-
-        # go through placements_list check which placements dont overlap with filter and add indices
-        for index, p in enumerate(placements_list):
-            if p.isdisjoint(filter):
-                ss = len(p)
-                indices[ss].add(index)
-
-        return indices
-
-    def N_p(self, ss, index, indices, overlaps):
-
-        num = 1
-
-        r_ship_sizes = self.ship_sizes.copy()
-        r_ship_sizes.remove(ss)
-
-        overlap_indices = overlaps[index]
-
-        for r_ss in set(r_ship_sizes):
-
-            num *= len(indices[r_ss]) ** r_ship_sizes.count(r_ss)
-
-        return num
-
     def get_hit_groups(self):
 
         # get hit cells
@@ -161,6 +131,48 @@ class Board:
 
         return hit_groups
 
+    def get_indices(self, placements_list, filter):
+
+        indices = {}
+
+        for ss in set(self.ship_sizes):
+            indices[ss] = set()
+
+        # go through placements_list check which placements dont overlap with filter and add indices
+        for index, p in enumerate(placements_list):
+            if p.isdisjoint(filter):
+                ss = len(p)
+                indices[ss].add(index)
+
+        return indices
+
+    def N_p(self, ss, index, indices, overlaps, k_max):
+
+        num = 1
+
+        r_ship_sizes = self.ship_sizes.copy()
+        r_ship_sizes.remove(ss)
+
+        _indices = {}
+
+        for r_ss in set(r_ship_sizes):
+
+            ss_c = r_ship_sizes.count(r_ss)
+
+            _indices[r_ss] = indices[r_ss] - overlaps[index, r_ss]
+
+            num *= len(_indices[r_ss]) ** ss_c
+
+        pairs = list(combinations(range(len(r_ship_sizes)), 2))
+
+        sign = 1
+        for k in range(1, k_max + 1):
+            sign *= -1
+            for comb in combinations(pairs, k):
+                num += sign  # * N_O * N_R
+
+        return num
+
     def calculate_probability_density(self):
 
         probability_map = np.zeros(self.board_sizes)
@@ -172,14 +184,30 @@ class Board:
         placements_list = [p for p_ss in placements_dict.values()
                            for p in p_ss]
 
+        if len(self.ship_sizes) > 0:
+
+            value = m = 1
+            n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
+            k_max = n_pairs + 1
+
+            while value >= m:
+                k_max -= 1
+                value = sum([math.comb(n_pairs, k) for k in range(k_max)])
+
+        else:
+
+            k_max = 0
+
         # init overlaps
         overlaps = {}
         for index1, p1 in enumerate(placements_list):
-            overlaps[index1] = set()
+            for ss in set(self.ship_sizes):
+                overlaps[index1, ss] = set()
+
             padded_p1 = self.get_padding(p1).union(p1)
             for index2, p2 in enumerate(placements_list):
                 if not padded_p1.isdisjoint(p2):
-                    overlaps[index1].add(index2)
+                    overlaps[index1, len(p2)].add(index2)
 
         # I-E-P for hit groups
 
@@ -201,7 +229,7 @@ class Board:
 
                     for index in indices[ss]:
 
-                        N_p = self.N_p(ss, index, indices, overlaps)
+                        N_p = self.N_p(ss, index, indices, overlaps, k_max)
 
                         for coord in placements_list[index]:
                             probability_map[coord] += sign * N_p * ss_c
