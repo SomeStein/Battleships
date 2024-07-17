@@ -123,45 +123,56 @@ BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
 # Standard Battleship ship sizes
 SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
 
-# board = Board(BOARD_SIZES, SHIP_SIZES)
+# # Constants
+# BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
+# # Standard Battleship ship sizes
+# SHIP_SIZES = [5, 4, 3, 3, 2]
+
+board = Board(BOARD_SIZES, SHIP_SIZES)
+
+# for test_board in test_boards:
+
+#     get_average_round_num(board, test_board, 200)
 
 # test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
 
-# print_placement([coord for ship in test_board for coord in ship], (10, 10))
+print_placement([coord for ship in test_board4 for coord in ship], (10, 10))
+
+board.test_game(test_board4)
 
 
-print("\n")
-average = mx = mn = k = 0
-for k in range(1, 1000):
+# print("\n")
+# average = mx = mn = k = 0
+# for k in range(1, 101):
 
-    # Constants
-    BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
-    # Standard Battleship ship sizes
-    SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
+#     # Constants
+#     BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
+#     # Standard Battleship ship sizes
+#     SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
 
-    board = Board(BOARD_SIZES, SHIP_SIZES)
+#     board = Board(BOARD_SIZES, SHIP_SIZES)
 
-    test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
+#     test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
 
-    # print_placement(
-    #     [coord for ship in test_board for coord in ship], BOARD_SIZES)
+#     # print_placement(
+#     #     [coord for ship in test_board for coord in ship], BOARD_SIZES)
 
-    rounds = board.test_game(test_board, 0)
+#     rounds = board.test_game(test_board, 0)
 
-    if mn == 0:
-        mn = rounds
+#     if mn == 0:
+#         mn = rounds
 
-    if rounds < mn:
-        mn = rounds
+#     if rounds < mn:
+#         mn = rounds
 
-    if rounds > mx:
-        mx = rounds
+#     if rounds > mx:
+#         mx = rounds
 
-    average += rounds
+#     average += rounds
 
-    print("\033[2K", end="\r")
-    print("\x1b[A", end="\r")
-    print("\033[2K", end="\r")
+#     print("\033[2K", end="\r")
+#     print("\x1b[A", end="\r")
+#     print("\033[2K", end="\r")
 
-    print(f"total games played: {k}, average: {
-          round(average/k, 4)}, max: {mx}, min: {mn}")
+#     print(f"total games played: {k}, average: {
+#           round(average/k, 4)}, max: {mx}, min: {mn}")

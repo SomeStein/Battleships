@@ -1,4 +1,5 @@
 
+from collections import defaultdict, deque
 from collections import deque
 import numpy as np
 import random
@@ -8,6 +9,8 @@ from itertools import combinations, product
 import copy
 import time
 import matplotlib.pyplot as plt
+
+from board_generation import recursion
 
 # Development
 # optimizing ship size duplicates for lookup generation
@@ -94,40 +97,6 @@ class Board:
 
         return placements
 
-    def N_p(self, placements, p: set):
-
-        num = 1
-
-        padded_p = p.union(self.get_padding(p))
-
-        r_ship_sizes = self.ship_sizes.copy()
-        r_ship_sizes.remove(len(p))
-
-        for r_ss in set(r_ship_sizes):  # remaining ship sizes
-
-            factor = 0
-
-            for r_p in placements[r_ss]:
-                if r_p.isdisjoint(padded_p):
-                    factor += 1
-
-            num *= factor ** r_ship_sizes.count(r_ss)
-
-        return num
-
-    def filter_placements(self, placements, filter):
-
-        filtered_placements = {}
-
-        for ss, p_ss in placements.items():
-            filtered_placements[ss] = []
-
-            for p in p_ss:
-                if p.isdisjoint(filter):
-                    filtered_placements[ss].append(p)
-
-        return filtered_placements
-
     def get_hit_groups(self):
 
         # get hit cells
@@ -165,13 +134,81 @@ class Board:
 
         return hit_groups
 
+    def get_indices(self, placements_list, filter):
+
+        indices = {}
+
+        for ss in set(self.ship_sizes):
+            indices[ss] = set()
+
+        # go through placements_list check which placements dont overlap with filter and add indices
+        for index, p in enumerate(placements_list):
+            if p.isdisjoint(filter):
+                ss = len(p)
+                indices[ss].add(index)
+
+        return indices
+
+    def N_p(self, ss, index, indices, overlaps, k_max):
+
+        num = 1
+
+        r_ship_sizes = self.ship_sizes.copy()
+        r_ship_sizes.remove(ss)
+
+        r_indices = {}
+
+        for r_ss in set(r_ship_sizes):
+
+            ss_c = r_ship_sizes.count(r_ss)
+
+            r_indices[r_ss] = indices[r_ss] - overlaps[index, r_ss]
+
+            num *= len(r_indices[r_ss]) ** ss_c
+
+        pairs = list(combinations(range(len(r_ship_sizes)), 2))
+
+        sign = 1
+        for k in range(1, k_max + 1):
+            sign *= -1
+            for comb in combinations(pairs, k):
+
+                ship_data = index, r_ship_sizes, r_indices, overlaps
+
+                N_O_comb = get_amount_overlap_combinations(comb, ship_data)
+
+                num += sign * N_O_comb
+
+        return num
+
     def calculate_probability_density(self):
 
         probability_map = np.zeros(self.board_sizes)
 
         hit_groups = self.get_hit_groups()
 
-        placements = self.get_placements()
+        placements_dict = self.get_placements()
+
+        placements_list = [p for p_ss in placements_dict.values()
+                           for p in p_ss]
+
+        # if 0 < len(self.ship_sizes):
+        #     value = m = 50
+        #     n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
+        #     k_max = n_pairs + 1
+
+        #     while value >= m:
+        #         k_max -= 1
+        #         value = sum(math.comb(n_pairs, k) for k in range(k_max + 1))
+
+        #     if k_max % 2 != 0:
+        #         k_max -= 1
+
+        if 1 < len(self.ship_sizes) <= 4:
+            k_max = math.comb(len(self.ship_sizes), 2)
+
+        else:
+            k_max = 0
 
         # I-E-P for hit groups
 
@@ -185,24 +222,34 @@ class Board:
 
                 hit_cells = {cell for hit_group in comb for cell in hit_group}
 
-                # get all placements without ones that overlap with certain hit_cells
-                filtered_placements = self.filter_placements(
-                    placements, hit_cells)
+                indices = self.get_indices(placements_list, hit_cells)
 
-                # for every placement add N_p to probability map
-                for ss, p_ss in filtered_placements.items():
+                # init overlaps
+                overlaps = {}
+                for ss1 in set(self.ship_sizes):
+                    for index in indices[ss1]:
+                        p1 = placements_list[index]
+                        padded_p1 = self.get_padding(p1).union(p1)
+                        for ss2 in set(self.ship_sizes):
+                            overlaps[index, ss2] = set()
+                            for index2 in indices[ss2]:
+                                p2 = placements_list[index2]
+                                if not padded_p1.isdisjoint(p2):
+                                    overlaps[index, len(p2)].add(index2)
+
+                for ss in set(self.ship_sizes):
 
                     ss_c = self.ship_sizes.count(ss)
 
-                    for p in p_ss:
+                    for index in indices[ss]:
 
-                        N_p = sign * self.N_p(filtered_placements, p) * ss_c
+                        N_p = self.N_p(ss, index, indices, overlaps, k_max)
 
-                        for coord in p:
-                            probability_map[coord] += N_p
+                        for coord in placements_list[index]:
+                            probability_map[coord] += sign * N_p * ss_c
 
         # rescale probability map to percentage
-        probability_map *= (len(np.where(self.board == Board.SUNK)[0])+sum(self.ship_sizes)) / \
+        probability_map *= sum(self.ship_sizes) / \
             (np.sum(probability_map) + 10**(-30))
 
         self.probability_map = probability_map
@@ -223,23 +270,24 @@ class Board:
                 if abs(self.probability_map[row][col] - m) < 0.1**6 and cell_value == Board.UNKNOWN:
                     best_shots.append((row, col))
 
-        m = 0
-        diags = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
-        # diags = [(r, c) for r in range(-1, 2) for c in range(-1, 2)]
-        n_list = []
-        for shot in best_shots:
-            n = 0
-            for dir in diags:
+        # m = 0
+        # diags = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+        # # diags = [(r, c) for r in range(-1, 2) for c in range(-1, 2)]
+        # n_list = []
+        # for shot in best_shots:
+        #     n = 0
+        #     for dir in diags:
 
-                r, c = (shot[0] + dir[0], shot[0] + dir[1])
-                if 0 <= r < n_rows and 0 <= c < n_cols:
-                    if self.board[r, c] == Board.UNKNOWN:
-                        n += 1
-            n_list.append(n)
+        #         r, c = (shot[0] + dir[0], shot[0] + dir[1])
+        #         if 0 <= r < n_rows and 0 <= c < n_cols:
+        #             if self.board[r, c] == Board.UNKNOWN:
+        #                 n += 1
+        #     n_list.append(n)
 
-        best_shots = [best_shots[i] for i in range(
-            len(best_shots)) if n_list[i] == max(n_list)]
+        # best_shots = [best_shots[i] for i in range(
+        #     len(best_shots)) if n_list[i] == max(n_list)]
 
+        # return best_shots[0]
         return random.choice(best_shots)
 
     def update_board_value(self, cell, value):
@@ -401,7 +449,7 @@ class Board:
             if len(board.ship_sizes) == 0:
                 if verbose > 0:
                     print(f"took {k} rounds and {
-                        time.time() - start_time} seconds")
+                          time.time() - start_time} seconds")
                 return k
 
             shot = board.best_possible_shot()
@@ -492,37 +540,128 @@ def get_average_round_num(board, test_board, N):
     return average/N
 
 
-# Function to check if two tuples are compatible
-def are_compatible(t1, t2, positions1, positions2):
-    combined_positions = list(set(positions1 + positions2))
-    combined_tuple = {pos: None for pos in combined_positions}
-
-    for pos, val in zip(positions1, t1):
-        if combined_tuple[pos] is None:
-            combined_tuple[pos] = val
-        elif combined_tuple[pos] != val:
-            return False
-
-    for pos, val in zip(positions2, t2):
-        if combined_tuple[pos] is None:
-            combined_tuple[pos] = val
-        elif combined_tuple[pos] != val:
-            return False
-
-    return True
-
-# Function to count valid combinations
+def build_adjacency_list(pairs):
+    adj_list = defaultdict(set)
+    for a, b in pairs:
+        adj_list[a].add(b)
+        adj_list[b].add(a)
+    return adj_list
 
 
-def count_valid_combinations(tuple_dict, keys_subset):
-    # Get the lists of tuples for the given subset of keys
-    lists = [tuple_dict[key] for key in keys_subset]
-    positions = [key for key in keys_subset]
+def bfs(start, adj_list, visited):
+    queue = deque([start])
+    component = set()
+    while queue:
+        node = queue.popleft()
+        if node not in visited:
+            visited.add(node)
+            component.add(node)
+            for neighbor in adj_list[node]:
+                if neighbor not in visited:
+                    queue.append(neighbor)
+    return component
 
-    count = 0
-    for combination in product(*lists):
-        if all(are_compatible(combination[i], combination[j], positions[i], positions[j])
-                for i in range(len(combination))
-                for j in range(i + 1, len(combination))):
-            count += 1
-    return count
+
+def group_tuples(pairs):
+    adj_list = build_adjacency_list(pairs)
+    visited = set()
+    components = []
+
+    for node in adj_list:
+        if node not in visited:
+            component = bfs(node, adj_list, visited)
+            components.append(component)
+
+    grouped_tuples = []
+    for component in components:
+        group = [pair for pair in pairs if pair[0]
+                 in component or pair[1] in component]
+        grouped_tuples.append(group)
+
+    return grouped_tuples
+
+
+def pairs_overlap_recursion(ship_data, group, done_ships):
+
+    i, j = group[0]
+
+    index, r_ship_sizes, indices, overlaps = ship_data
+
+    # if both i and j in done ships validate overlap and move on or break
+    if i in done_ships and j in done_ships:
+        indexi = done_ships[i]
+        indexj = done_ships[j]
+        ss_j = r_ship_sizes[j]
+        if indexj in overlaps[indexi, ss_j]:
+            if len(group) == 1:
+                return 1
+            return pairs_overlap_recursion(
+                ship_data, group[1:], done_ships)
+        return 0
+
+    # elif both are not done already loop over all indices for first and overlap indices for second
+    elif i not in done_ships and j not in done_ships:
+
+        num = 0
+        ss_i = r_ship_sizes[i]
+        ss_j = r_ship_sizes[j]
+        if len(group) == 1:
+            for indexi in indices[ss_i]:
+                num += len(overlaps[indexi, ss_j] - overlaps[index, ss_j])
+            return num
+        for indexi in indices[ss_i]:
+            for indexj in overlaps[indexi, ss_j] - overlaps[index, ss_j]:
+                _done_ships = done_ships.copy()
+                _done_ships[i] = indexi
+                _done_ships[j] = indexj
+                num += pairs_overlap_recursion(ship_data,
+                                               group[1:], _done_ships)
+        return num
+
+    # else just one in done ships loop over overlaps from other
+    elif i in done_ships:
+        indexi = done_ships[i]
+        ss_j = r_ship_sizes[j]
+        if len(group) == 1:
+            return len(overlaps[indexi, ss_j] - overlaps[index, ss_j])
+        num = 0
+        for indexj in overlaps[indexi, ss_j] - overlaps[index, ss_j]:
+            _done_ships = done_ships.copy()
+            _done_ships[j] = indexj
+            num += pairs_overlap_recursion(ship_data, group[1:], _done_ships)
+        return num
+
+    else:
+        indexj = done_ships[j]
+        ss_i = r_ship_sizes[i]
+        if len(group) == 1:
+            return len(overlaps[indexj, ss_i] - overlaps[index, ss_i])
+        num = 0
+        for indexi in overlaps[indexj, ss_i] - overlaps[index, ss_i]:
+            _done_ships = done_ships.copy()
+            _done_ships[i] = indexi
+            num += pairs_overlap_recursion(ship_data, group[1:], _done_ships)
+        return num
+
+
+def get_amount_overlap_combinations(comb, ship_data):
+
+    index, r_ship_sizes, r_indices, overlaps = ship_data
+
+    num = 1
+
+    groups = group_tuples(comb)
+
+    for group in groups:
+        factor = pairs_overlap_recursion(ship_data, group, {})
+
+        num *= factor
+
+    free_placing_ship_sizes = [obj for i, obj in enumerate(
+        r_ship_sizes) if i not in {index for tup in comb for index in tup}]
+
+    for ss in set(free_placing_ship_sizes):
+        ss_c = free_placing_ship_sizes.count(ss)
+        num *= len(r_indices[ss])**ss_c
+
+    return num
