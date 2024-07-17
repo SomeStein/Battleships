@@ -1,4 +1,5 @@
 
+from collections import defaultdict, deque
 from collections import deque
 import numpy as np
 import random
@@ -8,6 +9,8 @@ from itertools import combinations, product
 import copy
 import time
 import matplotlib.pyplot as plt
+
+from board_generation import recursion
 
 # Development
 # optimizing ship size duplicates for lookup generation
@@ -153,15 +156,15 @@ class Board:
         r_ship_sizes = self.ship_sizes.copy()
         r_ship_sizes.remove(ss)
 
-        _indices = {}
+        r_indices = {}
 
         for r_ss in set(r_ship_sizes):
 
             ss_c = r_ship_sizes.count(r_ss)
 
-            _indices[r_ss] = indices[r_ss] - overlaps[index, r_ss]
+            r_indices[r_ss] = indices[r_ss] - overlaps[index, r_ss]
 
-            num *= len(_indices[r_ss]) ** ss_c
+            num *= len(r_indices[r_ss]) ** ss_c
 
         pairs = list(combinations(range(len(r_ship_sizes)), 2))
 
@@ -170,10 +173,15 @@ class Board:
             sign *= -1
             for comb in combinations(pairs, k):
 
-                flat_comb = [i for pair in comb for i in pair]
+                ship_data = r_ship_sizes, r_indices, overlaps
 
-                num += sign * math.prod(len(_indices[r_ship_sizes[i]])
-                                        for i in range(len(r_ship_sizes)) if i not in flat_comb)
+                N_O_comb = get_amount_overlap_combinations(comb, ship_data)
+
+                print(N_O_comb)
+
+                time.sleep(100)
+
+                num += sign * N_O_comb
 
         return num
 
@@ -190,7 +198,7 @@ class Board:
 
         if len(self.ship_sizes) > 0:
 
-            value = m = 1000
+            value = m = 500
             n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
             k_max = n_pairs + 1
 
@@ -200,7 +208,10 @@ class Board:
 
         else:
 
-            k_max = 0
+            k_max = 1
+
+        if k_max % 2 != 0:
+            k_max -= 1
 
         # init overlaps
         overlaps = {}
@@ -527,3 +538,130 @@ def get_average_round_num(board, test_board, N):
         print(f"{i+1} average: {round(average/(i+1), 4)}, max: {mx}, min: {mn}")
 
     return average/N
+
+
+def build_adjacency_list(pairs):
+    adj_list = defaultdict(set)
+    for a, b in pairs:
+        adj_list[a].add(b)
+        adj_list[b].add(a)
+    return adj_list
+
+
+def bfs(start, adj_list, visited):
+    queue = deque([start])
+    component = set()
+    while queue:
+        node = queue.popleft()
+        if node not in visited:
+            visited.add(node)
+            component.add(node)
+            for neighbor in adj_list[node]:
+                if neighbor not in visited:
+                    queue.append(neighbor)
+    return component
+
+
+def group_tuples(pairs):
+    adj_list = build_adjacency_list(pairs)
+    visited = set()
+    components = []
+
+    for node in adj_list:
+        if node not in visited:
+            component = bfs(node, adj_list, visited)
+            components.append(component)
+
+    grouped_tuples = []
+    for component in components:
+        group = [pair for pair in pairs if pair[0]
+                 in component or pair[1] in component]
+        grouped_tuples.append(group)
+
+    return grouped_tuples
+
+
+def pairs_overlap_recursion(ship_data, group, done_ships):
+
+    i, j = group[0]
+
+    r_ship_sizes, indices, overlaps = ship_data
+
+    # if both i and j in done ships validate overlap and move on or break
+    if i in done_ships and j in done_ships:
+        indexi = done_ships[i]
+        indexj = done_ships[j]
+        ss_j = r_ship_sizes[j]
+        if indexj in overlaps[indexi, ss_j]:
+            if len(group) == 1:
+                return 1
+            pairs_overlap_recursion(
+                ship_data, group[1:], done_ships)
+
+    # elif both are not done already loop over all indices for first and overlap indices for second
+    elif i not in done_ships and j not in done_ships:
+
+        num = 0
+        ss_i = r_ship_sizes[i]
+        ss_j = r_ship_sizes[j]
+        if len(group) == 1:
+            for indexi in indices[ss_i]:
+                num += len(overlaps[indexi, ss_j])
+            return num
+        for indexi in indices[ss_i]:
+            for indexj in overlaps[indexi, ss_j]:
+                _done_ships = done_ships.copy()
+                _done_ships[i] = indexi
+                _done_ships[j] = indexj
+                num += pairs_overlap_recursion(ship_data,
+                                               group[1:], _done_ships)
+        return num
+
+    # else just one in done ships loop over overlaps from other
+    elif i in done_ships:
+        indexi = done_ships[i]
+        ss_j = r_ship_sizes[j]
+        if len(group) == 1:
+            return len(overlaps[indexi, ss_j])
+        num = 0
+        for indexj in overlaps[indexi, ss_j]:
+            _done_ships = done_ships.copy()
+            _done_ships[j] = indexj
+            num += pairs_overlap_recursion(ship_data, group[1:], _done_ships)
+        return num
+
+    else:
+        indexj = done_ships[j]
+        ss_i = r_ship_sizes[i]
+        if len(group) == 1:
+            return len(overlaps[indexj, ss_i])
+        num = 0
+        for indexi in overlaps[indexj, ss_i]:
+            _done_ships = done_ships.copy()
+            _done_ships[i] = indexi
+            num += pairs_overlap_recursion(ship_data, group[1:], _done_ships)
+        return num
+
+
+def get_amount_overlap_combinations(comb, ship_data):
+
+    r_ship_sizes, r_indices, overlaps = ship_data
+
+    num = 1
+
+    groups = group_tuples(comb)
+
+    for group in groups:
+        factor = pairs_overlap_recursion(
+            (r_ship_sizes, r_indices, overlaps), group, {})
+
+        num *= factor
+
+    free_placing_ship_sizes = [obj for i, obj in enumerate(
+        r_ship_sizes) if i not in {index for tup in comb for index in tup}]
+
+    for ss in set(free_placing_ship_sizes):
+        ss_c = free_placing_ship_sizes.count(ss)
+        num *= len(r_indices[ss])**ss_c
+
+    return num
