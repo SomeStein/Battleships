@@ -67,32 +67,30 @@ class Board:
 
         n_rows, n_cols = self.board_sizes
 
-        placements = {}
+        placements = []
 
-        coords = zip(*np.where((self.board == Board.UNKNOWN)
-                               | (self.board == Board.HIT)))
+        avail_coords = zip(*np.where((self.board == Board.UNKNOWN)
+                                     | (self.board == Board.HIT)))
 
-        coords = [(int(r), int(c)) for r, c in coords]
+        avail_coords = [(int(r), int(c)) for r, c in avail_coords]
 
-        for ss in set(self.ship_sizes):
+        for ss in sorted(list(set(self.ship_sizes))):
 
-            placements[ss] = []
-
-            for s_row, s_col in coords:
+            for s_row, s_col in avail_coords:
 
                 if s_col + ss <= n_cols:
 
                     ship_coords = set([(s_row, c)
                                        for c in range(s_col, s_col + ss)])
                     if self.valid_placement(ship_coords):
-                        placements[ss].append(ship_coords)
+                        placements.append(ship_coords)
 
                 if s_row + ss <= n_rows:
 
                     ship_coords = set([(r, s_col)
                                        for r in range(s_row, s_row + ss)])
                     if self.valid_placement(ship_coords):
-                        placements[ss].append(ship_coords)
+                        placements.append(ship_coords)
 
         return placements
 
@@ -133,7 +131,44 @@ class Board:
 
         return hit_groups
 
-    def get_indices(self, placements_list, filter):
+    def get_hg_IEP_data(self, placements):
+
+        data = []
+
+        hit_groups = self.get_hit_groups()
+
+        # I-E-P for hit groups
+        for k in range(len(hit_groups)+1):
+
+            sign = (-1)**k
+
+            combs = combinations(hit_groups, k)
+
+            for comb in combs:
+
+                hit_cells = {
+                    cell for hit_group in comb for cell in hit_group}
+
+                indices = self.get_indices(placements, hit_cells)
+
+                # init overlaps
+                overlaps = {}
+                for ss1 in set(self.ship_sizes):
+                    for index in indices[ss1]:
+                        p1 = placements[index]
+                        padded_p1 = self.get_padding(p1).union(p1)
+                        for ss2 in set(self.ship_sizes):
+                            overlaps[index, ss2] = set()
+                            for index2 in indices[ss2]:
+                                p2 = placements[index2]
+                                if not padded_p1.isdisjoint(p2):
+                                    overlaps[index, len(p2)].add(index2)
+
+                data.append((sign, indices, overlaps))
+
+        return data
+
+    def get_indices(self, placements, filter=set()):
 
         indices = {}
 
@@ -141,7 +176,7 @@ class Board:
             indices[ss] = set()
 
         # go through placements_list check which placements dont overlap with filter and add indices
-        for index, p in enumerate(placements_list):
+        for index, p in enumerate(placements):
             if p.isdisjoint(filter):
                 ss = len(p)
                 indices[ss].add(index)
@@ -169,6 +204,7 @@ class Board:
 
         sign = 1
         for k in range(1, k_max + 1):
+
             sign *= -1
             for comb in combinations(pairs, k):
 
@@ -182,62 +218,39 @@ class Board:
 
     def calculate_probability_density(self):
 
-        probability_map = np.zeros(self.board_sizes)
+        probability_map = np.ones(self.board_sizes)
 
-        hit_groups = self.get_hit_groups()
+        placements = self.get_placements()
 
-        placements_dict = self.get_placements()
+        hg_IEP_data = self.get_hg_IEP_data(placements)
 
-        placements_list = [p for p_ss in placements_dict.values()
-                           for p in p_ss]
+        k_max = (1 < len(self.ship_sizes) <= 1) * \
+            math.comb(len(self.ship_sizes), 2)
 
-        if 1 < len(self.ship_sizes) <= 4:
-            k_max = math.comb(len(self.ship_sizes), 2)
+        for ss in set(self.ship_sizes):
 
-        else:
-            k_max = 0
+            ss_probability_map = np.zeros(self.board_sizes)
 
-        # I-E-P for hit groups
+            ss_c = self.ship_sizes.count(ss)
 
-        for k in range(len(hit_groups)+1):
+            for sign, indices, overlaps in hg_IEP_data:
 
-            sign = (-1)**k
+                for i, index in enumerate(indices[ss]):
 
-            combs = combinations(hit_groups, k)
+                    N_p = self.N_p(ss, index, indices, overlaps, k_max)
 
-            for comb in combs:
+                    for coord in placements[index]:
+                        ss_probability_map[coord] += sign * N_p
 
-                hit_cells = {cell for hit_group in comb for cell in hit_group}
+            # rescaling to 0 - 1 for density
+            ss_probability_map *= ss/np.sum(ss_probability_map)
+            # transform to likelyhood of not having a ship
+            ss_probability_map = 1 - ss_probability_map
+            # multiply on total probab
+            probability_map *= ss_probability_map ** ss_c
 
-                indices = self.get_indices(placements_list, hit_cells)
-
-                # init overlaps
-                overlaps = {}
-                for ss1 in set(self.ship_sizes):
-                    for index in indices[ss1]:
-                        p1 = placements_list[index]
-                        padded_p1 = self.get_padding(p1).union(p1)
-                        for ss2 in set(self.ship_sizes):
-                            overlaps[index, ss2] = set()
-                            for index2 in indices[ss2]:
-                                p2 = placements_list[index2]
-                                if not padded_p1.isdisjoint(p2):
-                                    overlaps[index, len(p2)].add(index2)
-
-                for ss in set(self.ship_sizes):
-
-                    ss_c = self.ship_sizes.count(ss)
-
-                    for index in indices[ss]:
-
-                        N_p = self.N_p(ss, index, indices, overlaps, k_max)
-
-                        for coord in placements_list[index]:
-                            probability_map[coord] += sign * N_p * ss_c
-
-        # rescale probability map to percentage
-        probability_map *= sum(self.ship_sizes) / \
-            (np.sum(probability_map) + 10**(-30))
+        # retransform to likelyhood of hitting
+        probability_map = 1 - probability_map
 
         self.probability_map = probability_map
 
@@ -245,17 +258,45 @@ class Board:
 
         m = 0
         best_shots = []
-
         n_rows, n_cols = self.board_sizes
 
-        for row in range(n_rows):
-            for col in range(n_cols):
-                cell_value = self.board[row, col]
-                if self.probability_map[row][col] > m and cell_value == Board.UNKNOWN:
-                    m = self.probability_map[row][col]
-                    best_shots = []
-                if abs(self.probability_map[row][col] - m) < 0.1**6 and cell_value == Board.UNKNOWN:
-                    best_shots.append((row, col))
+        # get smallest ship size
+        ss = min(self.ship_sizes)
+        # get placements
+        placements = [p for p in self.get_placements() if len(p) == ss]
+        # only ones where placements land
+        minimal_mask = {coord for p in placements for coord in p}
+        # add adjacent to hit cells
+        rows, cols = np.where(self.board == Board.HIT)
+        hit_cells = set(zip(rows, cols))
+        adj = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        adj_hit_cells = {(r+a, c+b) for (r, c) in hit_cells for (a, b)
+                         in adj if 0 <= r+a < n_rows and 0 <= c+b < n_cols}
+
+        for coord in minimal_mask.union(adj_hit_cells):
+            cell_value = self.board[coord]
+            if self.probability_map[coord] > m and cell_value == Board.UNKNOWN:
+                m = self.probability_map[coord]
+                best_shots = []
+            if abs(self.probability_map[coord] - m) < 0.1**6 and cell_value == Board.UNKNOWN:
+                best_shots.append(coord)
+
+        # m = 0
+        # diags = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+        # # diags = [(r, c) for r in range(-1, 2) for c in range(-1, 2)]
+        # n_list = []
+        # for shot in best_shots:
+        #     n = 0
+        #     for dir in diags:
+
+        #         r, c = (shot[0] + dir[0], shot[0] + dir[1])
+        #         if 0 <= r < n_rows and 0 <= c < n_cols:
+        #             if self.board[r, c] == Board.UNKNOWN:
+        #                 n += 1
+        #     n_list.append(n)
+
+        # best_shots = [best_shots[i] for i in range(
+        #     len(best_shots)) if n_list[i] == max(n_list)]
 
         return random.choice(best_shots)
 
@@ -411,8 +452,8 @@ class Board:
 
             if verbose > 1:
                 print(board)  # print(np.round(board.probability_map,0))
-                data = board.probability_map
-                plt.imshow(data, cmap='viridis', interpolation='nearest')
+                # data = board.probability_map
+                # plt.matshow(data, cmap='viridis', fignum=k)
                 # plt.show()
 
             if len(board.ship_sizes) == 0:
