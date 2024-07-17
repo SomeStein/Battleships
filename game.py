@@ -192,27 +192,23 @@ class Board:
         placements_list = [p for p_ss in placements_dict.values()
                            for p in p_ss]
 
-        if 0 < len(self.ship_sizes):
-            value = m = 50
-            n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
-            k_max = n_pairs + 1
+        # if 0 < len(self.ship_sizes):
+        #     value = m = 50
+        #     n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
+        #     k_max = n_pairs + 1
 
-            # print(f"upper bound: {n_pairs}")
+        #     while value >= m:
+        #         k_max -= 1
+        #         value = sum(math.comb(n_pairs, k) for k in range(k_max + 1))
 
-            while value >= m:
-                k_max -= 1
-                value = sum(math.comb(n_pairs, k) for k in range(k_max + 1))
+        #     if k_max % 2 != 0:
+        #         k_max -= 1
 
-            if k_max % 2 != 0:
-                k_max -= 1
-
-            if len(self.ship_sizes) < 5:
-                k_max = math.comb(len(self.ship_sizes) - 1, 2)
+        if 1 < len(self.ship_sizes) <= 4:
+            k_max = math.comb(len(self.ship_sizes), 2)
 
         else:
             k_max = 0
-
-        # print(f"k_max: {k_max}")
 
         # I-E-P for hit groups
 
@@ -274,23 +270,24 @@ class Board:
                 if abs(self.probability_map[row][col] - m) < 0.1**6 and cell_value == Board.UNKNOWN:
                     best_shots.append((row, col))
 
-        m = 0
-        diags = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
-        # diags = [(r, c) for r in range(-1, 2) for c in range(-1, 2)]
-        n_list = []
-        for shot in best_shots:
-            n = 0
-            for dir in diags:
+        # m = 0
+        # diags = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+        # # diags = [(r, c) for r in range(-1, 2) for c in range(-1, 2)]
+        # n_list = []
+        # for shot in best_shots:
+        #     n = 0
+        #     for dir in diags:
 
-                r, c = (shot[0] + dir[0], shot[0] + dir[1])
-                if 0 <= r < n_rows and 0 <= c < n_cols:
-                    if self.board[r, c] == Board.UNKNOWN:
-                        n += 1
-            n_list.append(n)
+        #         r, c = (shot[0] + dir[0], shot[0] + dir[1])
+        #         if 0 <= r < n_rows and 0 <= c < n_cols:
+        #             if self.board[r, c] == Board.UNKNOWN:
+        #                 n += 1
+        #     n_list.append(n)
 
-        best_shots = [best_shots[i] for i in range(
-            len(best_shots)) if n_list[i] == max(n_list)]
+        # best_shots = [best_shots[i] for i in range(
+        #     len(best_shots)) if n_list[i] == max(n_list)]
 
+        # return best_shots[0]
         return random.choice(best_shots)
 
     def update_board_value(self, cell, value):
