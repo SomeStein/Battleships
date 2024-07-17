@@ -5,12 +5,10 @@ import numpy as np
 import random
 import math
 import re
-from itertools import combinations, product
+from itertools import combinations
 import copy
 import time
-import matplotlib.pyplot as plt
 
-from board_generation import recursion
 
 # Development
 # 4 boards v3
