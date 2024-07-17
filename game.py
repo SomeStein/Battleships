@@ -173,13 +173,9 @@ class Board:
             sign *= -1
             for comb in combinations(pairs, k):
 
-                ship_data = r_ship_sizes, r_indices, overlaps
+                ship_data = index, r_ship_sizes, r_indices, overlaps
 
                 N_O_comb = get_amount_overlap_combinations(comb, ship_data)
-
-                print(N_O_comb)
-
-                time.sleep(100)
 
                 num += sign * N_O_comb
 
@@ -196,33 +192,27 @@ class Board:
         placements_list = [p for p_ss in placements_dict.values()
                            for p in p_ss]
 
-        if len(self.ship_sizes) > 0:
-
-            value = m = 500
+        if 0 < len(self.ship_sizes):
+            value = m = 50
             n_pairs = math.comb(len(self.ship_sizes) - 1, 2)
             k_max = n_pairs + 1
 
+            # print(f"upper bound: {n_pairs}")
+
             while value >= m:
                 k_max -= 1
-                value = sum([math.comb(n_pairs, k) for k in range(k_max)])
+                value = sum(math.comb(n_pairs, k) for k in range(k_max + 1))
+
+            if k_max % 2 != 0:
+                k_max -= 1
+
+            if len(self.ship_sizes) < 5:
+                k_max = math.comb(len(self.ship_sizes) - 1, 2)
 
         else:
+            k_max = 0
 
-            k_max = 1
-
-        if k_max % 2 != 0:
-            k_max -= 1
-
-        # init overlaps
-        overlaps = {}
-        for index1, p1 in enumerate(placements_list):
-            for ss in set(self.ship_sizes):
-                overlaps[index1, ss] = set()
-
-            padded_p1 = self.get_padding(p1).union(p1)
-            for index2, p2 in enumerate(placements_list):
-                if not padded_p1.isdisjoint(p2):
-                    overlaps[index1, len(p2)].add(index2)
+        # print(f"k_max: {k_max}")
 
         # I-E-P for hit groups
 
@@ -237,6 +227,19 @@ class Board:
                 hit_cells = {cell for hit_group in comb for cell in hit_group}
 
                 indices = self.get_indices(placements_list, hit_cells)
+
+                # init overlaps
+                overlaps = {}
+                for ss1 in set(self.ship_sizes):
+                    for index in indices[ss1]:
+                        p1 = placements_list[index]
+                        padded_p1 = self.get_padding(p1).union(p1)
+                        for ss2 in set(self.ship_sizes):
+                            overlaps[index, ss2] = set()
+                            for index2 in indices[ss2]:
+                                p2 = placements_list[index2]
+                                if not padded_p1.isdisjoint(p2):
+                                    overlaps[index, len(p2)].add(index2)
 
                 for ss in set(self.ship_sizes):
 
@@ -449,7 +452,7 @@ class Board:
             if len(board.ship_sizes) == 0:
                 if verbose > 0:
                     print(f"took {k} rounds and {
-                        time.time() - start_time} seconds")
+                          time.time() - start_time} seconds")
                 return k
 
             shot = board.best_possible_shot()
@@ -585,7 +588,7 @@ def pairs_overlap_recursion(ship_data, group, done_ships):
 
     i, j = group[0]
 
-    r_ship_sizes, indices, overlaps = ship_data
+    index, r_ship_sizes, indices, overlaps = ship_data
 
     # if both i and j in done ships validate overlap and move on or break
     if i in done_ships and j in done_ships:
@@ -595,8 +598,9 @@ def pairs_overlap_recursion(ship_data, group, done_ships):
         if indexj in overlaps[indexi, ss_j]:
             if len(group) == 1:
                 return 1
-            pairs_overlap_recursion(
+            return pairs_overlap_recursion(
                 ship_data, group[1:], done_ships)
+        return 0
 
     # elif both are not done already loop over all indices for first and overlap indices for second
     elif i not in done_ships and j not in done_ships:
@@ -606,10 +610,10 @@ def pairs_overlap_recursion(ship_data, group, done_ships):
         ss_j = r_ship_sizes[j]
         if len(group) == 1:
             for indexi in indices[ss_i]:
-                num += len(overlaps[indexi, ss_j])
+                num += len(overlaps[indexi, ss_j] - overlaps[index, ss_j])
             return num
         for indexi in indices[ss_i]:
-            for indexj in overlaps[indexi, ss_j]:
+            for indexj in overlaps[indexi, ss_j] - overlaps[index, ss_j]:
                 _done_ships = done_ships.copy()
                 _done_ships[i] = indexi
                 _done_ships[j] = indexj
@@ -622,9 +626,9 @@ def pairs_overlap_recursion(ship_data, group, done_ships):
         indexi = done_ships[i]
         ss_j = r_ship_sizes[j]
         if len(group) == 1:
-            return len(overlaps[indexi, ss_j])
+            return len(overlaps[indexi, ss_j] - overlaps[index, ss_j])
         num = 0
-        for indexj in overlaps[indexi, ss_j]:
+        for indexj in overlaps[indexi, ss_j] - overlaps[index, ss_j]:
             _done_ships = done_ships.copy()
             _done_ships[j] = indexj
             num += pairs_overlap_recursion(ship_data, group[1:], _done_ships)
@@ -634,9 +638,9 @@ def pairs_overlap_recursion(ship_data, group, done_ships):
         indexj = done_ships[j]
         ss_i = r_ship_sizes[i]
         if len(group) == 1:
-            return len(overlaps[indexj, ss_i])
+            return len(overlaps[indexj, ss_i] - overlaps[index, ss_i])
         num = 0
-        for indexi in overlaps[indexj, ss_i]:
+        for indexi in overlaps[indexj, ss_i] - overlaps[index, ss_i]:
             _done_ships = done_ships.copy()
             _done_ships[i] = indexi
             num += pairs_overlap_recursion(ship_data, group[1:], _done_ships)
@@ -645,15 +649,14 @@ def pairs_overlap_recursion(ship_data, group, done_ships):
 
 def get_amount_overlap_combinations(comb, ship_data):
 
-    r_ship_sizes, r_indices, overlaps = ship_data
+    index, r_ship_sizes, r_indices, overlaps = ship_data
 
     num = 1
 
     groups = group_tuples(comb)
 
     for group in groups:
-        factor = pairs_overlap_recursion(
-            (r_ship_sizes, r_indices, overlaps), group, {})
+        factor = pairs_overlap_recursion(ship_data, group, {})
 
         num *= factor
 

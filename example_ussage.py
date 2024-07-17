@@ -125,16 +125,20 @@ SHIP_SIZES = [6, 4, 4, 3, 3, 3, 2, 2, 2, 2]
 
 board = Board(BOARD_SIZES, SHIP_SIZES)
 
-test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
+for test_board in test_boards:
 
-print_placement([coord for ship in test_board for coord in ship], (10, 10))
+    get_average_round_num(board, test_board, 200)
 
-board.test_game(test_board)
+# test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
+
+# print_placement([coord for ship in test_board for coord in ship], (10, 10))
+
+# board.test_game(test_board)
 
 
 # print("\n")
 # average = mx = mn = k = 0
-# for k in range(1, 100):
+# for k in range(1, 101):
 
 #     # Constants
 #     BOARD_SIZES = 10, 10  # Standard Battleship board size is 10x10
