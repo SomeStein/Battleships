@@ -1,20 +1,12 @@
 
 from collections import defaultdict, deque
-from collections import deque
+from itertools import combinations
 import numpy as np
 import random
 import math
 import re
-from itertools import combinations
 import copy
 import time
-
-
-# Development
-# least cells mask
-# Human detection (AI)
-# Backtracking for ingame
-# GUI
 
 
 class Board:
@@ -159,7 +151,7 @@ class Board:
                             for index2 in indices[ss2]:
                                 p2 = placements[index2]
                                 if not padded_p1.isdisjoint(p2):
-                                    overlaps[index, len(p2)].add(index2)
+                                    overlaps[index, ss2].add(index2)
 
                 data.append((sign, indices, overlaps))
 
@@ -221,7 +213,7 @@ class Board:
 
         hg_IEP_data = self.get_hg_IEP_data(placements)
 
-        k_max = (1 < len(self.ship_sizes) <= 4) * \
+        k_max = (1 < len(self.ship_sizes) <= 1) * \
             math.comb(len(self.ship_sizes), 2)
 
         for ss in set(self.ship_sizes):

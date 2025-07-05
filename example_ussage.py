@@ -56,6 +56,17 @@ test_board5 = [[(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2)],
                [(3, 0), (4, 0)],
                [(7, 7), (7, 8)]]
 
+test_board6 = [[(7, 0), (7, 1), (7, 2), (7, 3), (7, 4), (7, 5)],
+               [(1, 0), (1, 1), (1, 2), (1, 3)],
+               [(4, 5), (4, 6), (4, 7), (4, 8)],
+               [(0, 9), (1, 9), (2, 9)],
+               [(3, 3), (4, 3), (5, 3)],
+               [(6, 8), (7, 8), (8, 8)],
+               [(1, 6), (2, 6)],
+               [(3, 1), (4, 1)],
+               [(9, 1), (9, 2)],
+               [(9, 4), (9, 5)]]
+
 
 test_boards = [test_board1, test_board2, test_board3, test_board4, test_board5]
 
@@ -128,45 +139,47 @@ board = Board(BOARD_SIZES, SHIP_SIZES)
 
 # play a game with generated test board
 
-test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
+# test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
 
-print_placement([coord for ship in test_board for coord in ship], (10, 10))
+print_placement([coord for ship in test_board6 for coord in ship], (10, 10))
 
-board.test_game(test_board)
+# get_average_round_num(board, test_board4, 100)
+
+board.test_game(test_board4)
 
 # calculate averages, max and min over history boards
 
-for test_board in test_boards:
+# for test_board in test_boards:
 
-    get_average_round_num(board, test_board, 200)
+#     get_average_round_num(board, test_board, 200)
 
 
 # get average, max and min over 200 generated boards
 
-print("\n")
-average = mx = mn = k = 0
-for k in range(1, 201):
+# print("\n")
+# average = mx = mn = k = 0
+# for k in range(1, 201):
 
-    board = Board(BOARD_SIZES, SHIP_SIZES)
+#     board = Board(BOARD_SIZES, SHIP_SIZES)
 
-    test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
+#     test_board = generate_board(BOARD_SIZES, SHIP_SIZES)
 
-    rounds = board.test_game(test_board, 0)
+#     rounds = board.test_game(test_board, 0)
 
-    if mn == 0:
-        mn = rounds
+#     if mn == 0:
+#         mn = rounds
 
-    if rounds < mn:
-        mn = rounds
+#     if rounds < mn:
+#         mn = rounds
 
-    if rounds > mx:
-        mx = rounds
+#     if rounds > mx:
+#         mx = rounds
 
-    average += rounds
+#     average += rounds
 
-    print("\033[2K", end="\r")
-    print("\x1b[A", end="\r")
-    print("\033[2K", end="\r")
+#     print("\033[2K", end="\r")
+#     print("\x1b[A", end="\r")
+#     print("\033[2K", end="\r")
 
-    print(f"total games played: {k}, average: {
-          round(average/k, 4)}, max: {mx}, min: {mn}")
+#     print(f"total games played: {k}, average: {
+#           round(average/k, 4)}, max: {mx}, min: {mn}")
