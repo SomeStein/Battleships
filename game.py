@@ -1,23 +1,12 @@
 
 from collections import defaultdict, deque
-from collections import deque
+from itertools import combinations
 import numpy as np
 import random
 import math
 import re
-from itertools import combinations, product
 import copy
 import time
-import matplotlib.pyplot as plt
-
-from board_generation import recursion
-
-# Development
-# 4 boards v3
-# least cells mask
-# Human detection (AI)
-# Backtracking for ingame
-# GUI
 
 
 class Board:
@@ -162,7 +151,7 @@ class Board:
                             for index2 in indices[ss2]:
                                 p2 = placements[index2]
                                 if not padded_p1.isdisjoint(p2):
-                                    overlaps[index, len(p2)].add(index2)
+                                    overlaps[index, ss2].add(index2)
 
                 data.append((sign, indices, overlaps))
 
@@ -254,18 +243,44 @@ class Board:
 
         self.probability_map = probability_map
 
+    def get_minimal_mask(self):
+
+        ss = min(self.ship_sizes)
+        placements = [p for p in self.get_placements() if len(p) == ss]
+
+        minimal_mask = set()
+
+        while len(placements) > 0:
+
+            # get all coord counts from flattened choose one with highest count
+            flat = [coord for p in placements for coord in p]
+            m = 0
+            max_coord = None
+            for coord in flat:
+                c = flat.count(coord)
+                if c > m:
+                    m = c
+                    max_coord = coord
+
+            # add to minimal_mask
+            minimal_mask.add(max_coord)
+
+            # remove placements that got hit
+            for i in range(len(placements)-1, -1, -1):
+                p = placements[i]
+                if max_coord in p:
+                    placements.remove(p)
+
+        return minimal_mask
+
     def best_possible_shot(self):
 
         m = 0
         best_shots = []
         n_rows, n_cols = self.board_sizes
 
-        # get smallest ship size
-        ss = min(self.ship_sizes)
-        # get placements
-        placements = [p for p in self.get_placements() if len(p) == ss]
-        # only ones where placements land
-        minimal_mask = {coord for p in placements for coord in p}
+        minimal_mask = self.get_minimal_mask()
+
         # add adjacent to hit cells
         rows, cols = np.where(self.board == Board.HIT)
         hit_cells = set(zip(rows, cols))
@@ -278,7 +293,7 @@ class Board:
             if self.probability_map[coord] > m and cell_value == Board.UNKNOWN:
                 m = self.probability_map[coord]
                 best_shots = []
-            if abs(self.probability_map[coord] - m) < 0.1**6 and cell_value == Board.UNKNOWN:
+            if abs(self.probability_map[coord] - m) < 0.1**10 and cell_value == Board.UNKNOWN:
                 best_shots.append(coord)
 
         # m = 0
